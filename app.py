@@ -47,7 +47,7 @@ DEFAULT_QUALITY = next((k for k, v in QUALITY.items() if v == GS_QUALITY), "bala
 
 LOGIN_USER = os.environ["UPLOADER_USER"]
 LOGIN_PASSWORD = os.environ["UPLOADER_PASSWORD"]
-SESSION_MINUTES = int(os.environ.get("SESSION_MINUTES", "30"))
+SESSION_HOURS = int(os.environ.get("SESSION_HOURS", "24"))
 
 # The values in secrets.env.example are public: never run with them
 for _name, _example in (("UPLOADER_PASSWORD", "a-long-secure-password"),
@@ -68,17 +68,26 @@ app.config.update(MAX_CONTENT_LENGTH=MAX_MB * 1024 * 1024)
 # so a spoofed header sent by the client is ignored.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-# No cookies. Signing in returns the page together with a random session token that
-# only lives in that page's memory and is sent with every request, so it doubles as
-# CSRF protection. Reloading or reopening the page loses it.
+# Signing in sets a cookie with a random session token. Scripts cannot read it (HttpOnly)
+# and the browser sends it over HTTPS only. It is valid for SESSION_HOURS from the moment
+# of signing in, across reloads and browser restarts. Sessions are kept in memory, so a
+# restart of the container signs everyone out.
 #
-# The login form itself works once: a browser repeats the last form when a page is
-# reloaded or a closed tab is restored, and would otherwise sign in again with the
-# remembered password. The per-start salt invalidates open login forms on a restart,
-# when the list of used ones is gone.
+# A session belongs to the address it was started from: a cookie copied to another device
+# is refused there, while the owner stays signed in.
+#
+# The cookie alone is not enough for an action. Each one also carries a second token that
+# only the page knows, so that another website cannot act with the user's cookie (CSRF).
+# It comes in a header, so that a request is turned away before its body is read.
+#
+# Signing in answers with a redirect: reloading the page then never repeats the login form.
+# The form also works only once, so a remembered password cannot be replayed with it. The
+# per-start salt invalidates open login forms on a restart, when the list of used ones is gone.
+COOKIE = "__Host-paperdrop"
+COOKIE_FLAGS = dict(secure=True, httponly=True, samesite="Lax", path="/")
 _signer = URLSafeTimedSerializer(os.environ["SECRET_KEY"], salt=f"login-{secrets.token_hex(8)}")
 _used_forms: dict[str, float] = {}
-_sessions: dict[str, float] = {}  # session token -> time of last activity
+_sessions: dict[str, tuple[float, str, str]] = {}  # session token -> (end of validity, page token, address)
 _lock = threading.Lock()
 LOGIN_FORM_SECONDS = 12 * 3600  # how long an opened login page can still be submitted
 
@@ -148,17 +157,20 @@ def login_form_fresh(token: str) -> bool:
     return True
 
 
-def session_valid(token: str, touch: bool) -> bool:
-    """touch=False for background requests, which must not count as activity."""
+def current_session() -> tuple[float, str] | None:
+    """(end of validity, page token) of the signed-in browser, or None."""
     now = time.time()
     with _lock:
-        for old in [s for s, t in _sessions.items() if now - t > SESSION_MINUTES * 60]:
+        for old in [s for s, entry in _sessions.items() if entry[0] < now]:
             del _sessions[old]
-        if token not in _sessions:
-            return False
-        if touch:
-            _sessions[token] = now
-    return True
+        entry = _sessions.get(request.cookies.get(COOKIE, ""))
+    if not entry:
+        return None
+    expires, page_token, ip = entry
+    if ip != client_ip():
+        app.logger.warning("Session started from %s refused for %s", ip, client_ip())
+        return None
+    return expires, page_token
 
 
 def is_api() -> bool:
@@ -169,20 +181,24 @@ def login_page(error: str | None = None, status: int = 200):
     return render_template("login.html", error=error, once=_signer.dumps(secrets.token_hex(8))), status
 
 
-def session_token(form: bool = False) -> str:
-    """The session token of this request.
+def signed_in(form: bool) -> bool:
+    """True if the request has a valid session cookie and the page token that belongs to it.
 
-    It comes in a header, so that a request is turned away before its body is read.
-    Only "Open PDF" is a plain form posted to a new tab and carries it as a field.
+    "Open PDF" is a plain form posted to a new tab and carries the page token as a field
+    (form=True). The body is only read once the cookie has been accepted.
     """
-    return request.form.get("auth", "") if form else request.headers.get("X-Auth", "")
+    session = current_session()
+    if not session:
+        return False
+    sent = request.form.get("auth", "") if form else request.headers.get("X-Auth", "")
+    return hmac.compare_digest(_digest(sent), _digest(session[1]))
 
 
-def login_required(view=None, *, touch: bool = True, form: bool = False):
+def login_required(view=None, *, form: bool = False):
     def decorator(view):
         @wraps(view)
         def wrapper(*args, **kwargs):
-            if not session_valid(session_token(form), touch):
+            if not signed_in(form):
                 if is_api():
                     return {"error": "signed out"}, 401
                 return login_page("Please sign in again.", 401)
@@ -191,43 +207,61 @@ def login_required(view=None, *, touch: bool = True, form: bool = False):
     return decorator(view) if view else decorator
 
 
+# Shown on the login page after a redirect from /login
+LOGIN_MESSAGES = {
+    "again": "Please sign in again.",
+    "locked": "Too many failed attempts – please wait 15 minutes.",
+    "invalid": "Invalid username or password.",
+}
+
+
 @app.get("/")
-def login_form():
-    return login_page()
+def home():
+    """The upload page for a signed-in browser, the login page for everyone else."""
+    session = current_session()
+    if not session:
+        return login_page(LOGIN_MESSAGES.get(request.args.get("m", "")))
+    expires, page_token = session
+    return render_template("index.html", boot={
+        "auth": page_token, "items": staged_items(), "sessionHours": SESSION_HOURS,
+        "expiresIn": int(expires - time.time()), "maxMb": MAX_MB, "quality": DEFAULT_QUALITY,
+    })
 
 
 @app.post("/login")
 def login():
     ip = client_ip()
-    # A repeated form (reload, restored tab) is turned away before the password is looked at
+    # A repeated form (restored tab, back button) is turned away before the password is looked at
     if not login_form_fresh(request.form.get("once", "")):
-        return login_page("Please sign in again.", 401)
+        return redirect("/?m=again", 303)
     if locked(ip):
-        error = "Too many failed attempts – please wait 15 minutes."
-    elif check_credentials(request.form.get("user", ""), request.form.get("password", "")):
-        _failed.pop(ip, None)
-        app.logger.info("Login from %s", ip)
-        token = secrets.token_urlsafe(32)
-        with _lock:
-            _sessions[token] = time.time()
-        return render_template("index.html", boot={
-            "auth": token, "items": staged_items(), "sessionMinutes": SESSION_MINUTES,
-            "maxMb": MAX_MB, "quality": DEFAULT_QUALITY,
-        })
-    else:
+        return redirect("/?m=locked", 303)
+    if not check_credentials(request.form.get("user", ""), request.form.get("password", "")):
         _failed.setdefault(ip, []).append(time.time())
         app.logger.warning("Failed login from %s", ip)
         time.sleep(1)
-        error = "Invalid username or password."
-    return login_page(error, 401)
+        return redirect("/?m=invalid", 303)
+    _failed.pop(ip, None)
+    app.logger.info("Login from %s", ip)
+    if not request.is_secure:
+        app.logger.warning("Login over plain HTTP: the browser will not keep the session cookie. "
+                           "Open the page through the HTTPS address of your reverse proxy.")
+    token = secrets.token_urlsafe(32)
+    with _lock:
+        _sessions[token] = (time.time() + SESSION_HOURS * 3600, secrets.token_urlsafe(32), ip)
+    resp = redirect("/", 303)
+    resp.set_cookie(COOKIE, token, max_age=SESSION_HOURS * 3600, **COOKIE_FLAGS)
+    return resp
 
 
 @app.post("/api/logout")
 @login_required
 def logout():
     with _lock:
-        _sessions.pop(session_token(), None)
-    return {"ok": True}
+        _sessions.pop(request.cookies.get(COOKIE, ""), None)
+    resp = app.make_response({"ok": True})
+    resp.delete_cookie(COOKIE, **COOKIE_FLAGS)
+    return resp
 
 
 @app.errorhandler(HTTPException)
@@ -603,14 +637,14 @@ def delete_item(item_id):
 
 
 @app.post("/api/tasks")
-@login_required(touch=False)
+@login_required
 def tasks():
     ids = [i for i in request.form.get("ids", "").split(",") if TASK_RE.match(i)][:20]
     return {"tasks": {i: task_state(i) for i in ids}}
 
 
 @app.post("/api/ping")
-@login_required(touch=False)
+@login_required
 def ping():
     """Whether Paperless can be reached with the configured token."""
     try:

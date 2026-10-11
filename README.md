@@ -11,7 +11,7 @@ It runs as a single Docker container behind your reverse proxy and needs no data
 - **Compression with Ghostscript** in three strengths; the smaller of the original and the compressed file is kept
 - **Review before sending**: every file shows its size before and after, can be opened and renamed, then uploaded or deleted, one by one or all at once
 - **Consume status**: the page shows whether Paperless consumed each upload, still has it in the queue, or rejected it as failed or duplicate
-- **Login without cookies**, with a lockout after repeated failed attempts
+- **Login that lasts 24 hours**, also across reloads, with a lockout after repeated failed attempts
 - **Your own name and logo**, set in `docker-compose.yml`
 - **Readable logs**: a failed upload states its cause in the container log; document titles appear shortened, as in `Inv******023`
 
@@ -130,7 +130,7 @@ Put exactly one proxy in front of the app. The login lockout relies on the clien
 
 Files that are neither uploaded nor deleted are removed after `KEEP_MINUTES`.
 
-The login is valid for `SESSION_MINUTES` without activity. No cookie is set, so reloading or reopening the page asks for the login again.
+You stay signed in for `SESSION_HOURS`, counted from signing in, also when you reload the page or close the browser. The login is kept in one cookie that scripts cannot read and that is sent over HTTPS only. **Sign out** ends it at once; so does a restart of the container. The login only works from the address you signed in from, so a device whose address changes has to sign in again.
 
 ## Configuration
 
@@ -148,7 +148,7 @@ To change one, remove the `#` at the start of its line and set the value. The co
 | `APP_NAME` | `Paperdrop` | Name shown on the page and in the browser tab |
 | `GS_QUALITY` | `ebook` | Compression strength that is preselected: `printer` (Light), `ebook` (Balanced) or `screen` (Strong) |
 | `MAX_UPLOAD_MB` | `200` | Largest accepted file, and the limit for images that are merged into one document |
-| `SESSION_MINUTES` | `30` | How long a login stays valid without activity |
+| `SESSION_HOURS` | `24` | How long you stay signed in |
 | `KEEP_MINUTES` | `30` | How long files that were neither uploaded nor deleted are kept |
 | `LOG_LEVEL` | `INFO` | `DEBUG` for more detail |
 
@@ -182,6 +182,7 @@ When an upload fails, the page and the container log both state the cause. Read 
 | Uploads stay on "sent" | The token's user may not view tasks; see step 2 |
 | `502 Bad Gateway` from the proxy | The container is not running, or the forward hostname or network is wrong |
 | `Too many failed attempts` | Five wrong logins from one address; wait 15 minutes |
+| Signed out before the time is up | The container was restarted, or the device's address changed; the log then shows `Session started from … refused for …` |
 | Container keeps restarting | `secrets.env` still has the example password or `SECRET_KEY`; the log names which |
 | `larger than 120 megapixels` | The photo is too large to process safely; take it at a lower resolution |
 

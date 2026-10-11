@@ -10,7 +10,7 @@ services:
       # APP_NAME: Paperdrop       # (optional) name shown on the page
       # GS_QUALITY: ebook         # (optional) preselected compression: printer (light), ebook (balanced) or screen (strong)
       # MAX_UPLOAD_MB: 200        # (optional) largest accepted file in MB
-      # SESSION_MINUTES: 30       # (optional) minutes a login stays valid without activity
+      # SESSION_HOURS: 24         # (optional) hours you stay signed in
       # KEEP_MINUTES: 30          # (optional) minutes until files that were neither uploaded nor deleted are removed
       # LOG_LEVEL: INFO           # (optional) DEBUG for more detail in the log
     volumes:

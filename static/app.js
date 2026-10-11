@@ -16,13 +16,11 @@
   const pending = new Map();  // Paperless task id -> pill element still waiting for a final status
 
   // ---------- session ----------
-  // The session token lives only in this page. Leaving means going back to the login.
+  // The login is kept in a cookie. Once it has run out, '/' shows the login page again.
   const leave = () => location.replace('/');
-  let idle;
-  const restartIdle = () => { clearTimeout(idle); idle = setTimeout(leave, boot.sessionMinutes * 60000); };
+  setTimeout(leave, boot.expiresIn * 1000);
 
-  // touch=false for background requests, which do not count as activity
-  async function api(path, data = {}, touch = true) {
+  async function api(path, data = {}) {
     const body = new FormData();
     for (const [key, value] of Object.entries(data))
       for (const v of [].concat(value)) body.append(key, v);
@@ -30,7 +28,6 @@
     try { res = await fetch(path, { method: 'POST', headers: { 'X-Auth': boot.auth }, body }); }
     catch { return { error: 'No connection to the server.' }; }
     if (res.status === 401) { leave(); return new Promise(() => {}); }
-    if (touch) restartIdle();
     let json = null;
     try { json = await res.json(); } catch { /* not JSON */ }
     if (!res.ok) return { error: (json && json.error) || `Server error (${res.status}).` };
@@ -223,7 +220,7 @@
   function schedulePoll() { if (!pollTimer && pending.size) pollTimer = setTimeout(poll, 4000); }
   async function poll() {
     pollTimer = null;
-    const res = await api('/api/tasks', { ids: [...pending.keys()].join(',') }, false);
+    const res = await api('/api/tasks', { ids: [...pending.keys()].join(',') });
     for (const [task, info] of Object.entries(res.tasks || {})) {
       const pill = pending.get(task);
       if (!pill) continue;
@@ -244,7 +241,6 @@
       viewForm.action = `/item/${doc.dataset.id}/view`;
       viewForm.elements.auth.value = boot.auth;
       viewForm.submit();
-      restartIdle();
     }
     else if (btn.matches('[data-all]')) {
       working = true;
@@ -264,13 +260,12 @@
   // ---------- start ----------
   $$('[data-q]').forEach(b => b.setAttribute('aria-pressed', b.dataset.q === quality));
   for (const item of boot.items) queue.append(fillDoc(make('t-doc'), item));
-  restartIdle();
   refresh();
 
   // Connection to Paperless, checked now and once a minute
   const conn = $('[data-conn]');
   async function checkPaperless() {
-    const res = await api('/api/ping', {}, false);
+    const res = await api('/api/ping');
     conn.classList.toggle('on', !!res.ok);
     conn.classList.toggle('off', !res.ok);
     conn.title = res.detail || res.error || '';
