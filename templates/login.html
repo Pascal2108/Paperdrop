@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include "_head.html" %}
+<title>Sign in – {{ app_name }}</title>
+</head>
+<body>
+<div class="app login">
+  <main class="login-card">
+    {% include "_brand.html" %}
+    {% if error %}<div class="login-err" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/login">
+      <input type="hidden" name="once" value="{{ once }}">
+      <label class="field">Username<input type="text" name="user" autocomplete="username" autocapitalize="none" autofocus required></label>
+      <label class="field">Password<input type="password" name="password" autocomplete="current-password" required></label>
+      <button class="btn btn-go" type="submit">Sign in</button>
+    </form>
+  </main>
+</div>
+</body>
+</html>

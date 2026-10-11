@@ -1,0 +1,30 @@
+services:
+  paperdrop:
+    image: ghcr.io/pascal2108/paperdrop:latest
+    container_name: paperdrop
+    restart: unless-stopped
+    env_file:
+      - secrets.env
+    environment:
+      # Change to the container name of your Paperless webserver
+      PAPERLESS_URL: http://paperless-webserver-1:8000
+      # For your own name on the page: uncomment and change
+      # APP_NAME: Paperdrop
+      GS_QUALITY: ebook
+      MAX_UPLOAD_MB: 200
+      SESSION_MINUTES: 30
+      KEEP_HOURS: 24
+      LOG_LEVEL: INFO
+    # For your own logo: uncomment and change ./logo.png to the path of a PNG, JPG or WEBP file
+    # volumes:
+    #   - ./logo.png:/logo:ro
+    expose:
+      - "8000"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    # Change to the Docker network shared by your reverse proxy and Paperless
+    name: nginx_reverse_proxy

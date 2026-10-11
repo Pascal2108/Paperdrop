@@ -1,0 +1,12 @@
+.git
+.gitignore
+*.env
+.env*
+secrets/
+data/
+staging/
+__pycache__/
+.venv/
+design/
+README.md
+.github

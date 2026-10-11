@@ -1,0 +1,6 @@
+flask==3.1.*
+gunicorn==23.*
+requests>=2.33,<3
+img2pdf==0.6.*
+pikepdf==10.*
+pillow>=12.3,<13

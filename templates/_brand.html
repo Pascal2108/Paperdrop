@@ -1,0 +1,6 @@
+<div class="brand">
+  {%- if logo %}<img src="{{ logo }}" alt="">
+  {%- else %}<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#1B1E1F"/><g transform="translate(-14 -25)"><path d="M168 88 H300 L376 164 V400 Q376 440 336 440 H168 Q128 440 128 400 V128 Q128 88 168 88 Z" fill="#F5A623"/><path d="M300 88 V132 Q300 164 332 164 H376 Z" fill="#C47F12"/><g stroke="#C47F12" stroke-width="22" stroke-linecap="round"><path d="M180 232 H272"/><path d="M180 284 H232"/></g><path d="M330 232.1 C358.7 289.5 412 330.5 412 392 A82 82 0 0 1 248 392 C248 330.5 301.3 289.5 330 232.1 Z" fill="#1B1E1F"/><path d="M330 275.0 C351.0 317.0 390 347.0 390 392 A60 60 0 0 1 270 392 C270 347.0 309.0 317.0 330 275.0 Z" fill="#1FA676"/></g></svg>
+  {%- endif %}
+  <span>{% if own_name %}Paper<b>drop</b>{% else %}{{ app_name }}{% endif %}</span>
+</div>

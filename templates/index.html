@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include "_head.html" %}
+<title>{{ app_name }}</title>
+</head>
+<body>
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="i-del" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 30V8M15 17l9-9 9 9"/><path d="M8 30v8a2 2 0 0 0 2 2h28a2 2 0 0 0 2-2v-8"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4v16h-4M10 16l-4-4 4-4M6 12h10"/></symbol>
+</svg>
+
+<div class="app">
+  <header class="top">
+    {% include "_brand.html" %}
+    <span class="grow"></span>
+    <span class="conn" data-conn title="Checking the connection to Paperless"><i></i>{{ paperless_host }}</span>
+    <button class="btn btn-quiet btn-sm only-wide" type="button" data-out>Sign out</button>
+    <button class="btn btn-quiet icon-btn only-narrow" type="button" data-out aria-label="Sign out"><svg><use href="#i-out"/></svg></button>
+  </header>
+
+  <main class="main">
+    <section class="left">
+      <div class="drop" data-drop>
+        <svg class="glyph only-wide"><use href="#i-drop"/></svg>
+        <div>
+          <div class="t1"><span class="only-wide">Drop PDF, JPG or PNG files here</span><span class="only-narrow">Add a document</span></div>
+          <div class="t2">PDF, JPG or PNG · up to {{ boot.maxMb }} MB each</div>
+        </div>
+        <div class="picks">
+          <button class="btn cam only-narrow" type="button" data-pick="camera"><svg><use href="#i-cam"/></svg>Scan with camera</button>
+          <button class="btn btn-quiet" type="button" data-pick="files"><svg><use href="#i-file"/></svg>Choose files</button>
+        </div>
+        <input type="file" id="files" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" hidden>
+        <input type="file" id="camera" accept="image/*" capture="environment" hidden>
+      </div>
+
+      <div class="staged" data-staged aria-label="Files to compress"></div>
+      <div class="alerts" data-alerts role="alert"></div>
+
+      <div class="opts">
+        <label class="check"><input type="checkbox" data-merge checked>Merge images into one PDF</label>
+        <div class="seg-row"><span>Compression</span>
+          <div class="seg" role="group" aria-label="Compression" data-quality>
+            <button type="button" data-q="light" aria-pressed="false">Light</button><button type="button" data-q="balanced" aria-pressed="false">Balanced</button><button type="button" data-q="strong" aria-pressed="false">Strong</button>
+          </div>
+        </div>
+        <button class="btn btn-go compress" type="button" data-compress disabled>Add files to compress</button>
+      </div>
+    </section>
+
+    <section class="right">
+      <div>
+        <h2 class="h">Ready for review <span class="count" data-count>0</span><span class="spacer"></span><button class="btn btn-go btn-sm only-wide" type="button" data-all disabled><svg><use href="#i-up"/></svg>Upload all</button></h2>
+        <div class="queue" data-queue></div>
+        <p class="empty" data-queue-empty>Nothing waiting. Compressed files appear here for a last look before they go to Paperless.</p>
+      </div>
+
+      <div>
+        <h2 class="h">Sent to Paperless</h2>
+        <ul class="sent-list" data-sent hidden></ul>
+        <p class="empty" data-sent-empty>Nothing sent since you signed in.</p>
+      </div>
+    </section>
+  </main>
+
+  <p class="foot">You stay signed in for {{ boot.sessionMinutes }} minutes without activity. Reloading or reopening the page asks for the login again.</p>
+
+  <div class="dock only-narrow" data-dock hidden><button class="btn btn-go" type="button" data-all><svg><use href="#i-up"/></svg><span>Upload all (<span data-n>0</span>)</span></button></div>
+</div>
+
+<form id="view" method="post" target="_blank" hidden><input type="hidden" name="auth"></form>
+
+<template id="t-chip">
+  <div class="chip"><svg><use href="#i-file"/></svg><span class="n"></span><span class="s"></span><button type="button" data-remove aria-label="Remove">×</button></div>
+</template>
+<template id="t-doc">
+  <article class="doc">
+    <button class="thumb" type="button" data-view aria-label="Open PDF" title="Open PDF"><span class="pg"></span></button>
+    <input class="title" aria-label="Document title" maxlength="200" autocomplete="off" spellcheck="false">
+    <div class="meta"></div>
+    <div class="prog" hidden><i></i></div>
+    <div class="acts"><button class="btn btn-go" type="button" data-up><svg><use href="#i-up"/></svg>Upload</button><button class="btn btn-del" type="button" data-del><svg><use href="#i-del"/></svg>Delete</button></div>
+  </article>
+</template>
+<template id="t-sent">
+  <li><span class="n"></span><span class="pill"></span><time></time></li>
+</template>
+<template id="t-alert">
+  <div class="alert"><span></span><button type="button" data-dismiss aria-label="Dismiss">×</button></div>
+</template>
+
+<script type="application/json" id="boot">{{ boot|tojson }}</script>
+<script src="/static/app.js"></script>
+</body>
+</html>

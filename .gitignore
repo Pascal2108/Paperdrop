@@ -1,0 +1,50 @@
+# --- Secrets (niemals committen) ---
+secrets.env
+*.env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+docker-compose.override.yml
+
+# --- Hochgeladene / verarbeitete Dokumente (lokales STAGING_DIR, Testdateien) ---
+staging/
+data/
+uploads/
+tmp/
+*.pdf
+*.fixed.jpg
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Logs / lokale Datenbanken ---
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.claude/settings.local.json
+Thumbs.db
+desktop.ini
+.DS_Store
