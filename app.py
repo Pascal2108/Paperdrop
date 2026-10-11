@@ -274,7 +274,8 @@ def compress_pdf(src: Path, dst: Path, preset: str) -> Path:
         f"-sOutputFile={dst}", str(src),
     ]
     try:
-        subprocess.run(cmd, check=True, timeout=300)
+        # Ghostscript keeps its own temporary files next to the output, in the work folder
+        subprocess.run(cmd, check=True, timeout=300, env={**os.environ, "TMPDIR": str(dst.parent)})
     except Exception as e:
         app.logger.warning("Ghostscript failed (%s), using original", e)
         return src
@@ -374,7 +375,9 @@ def task_state(task_id: str) -> dict:
 
 STAGING = Path(os.environ.get("STAGING_DIR", "/tmp/staging")).resolve()
 STAGING.mkdir(parents=True, exist_ok=True)
-KEEP_HOURS = int(os.environ.get("KEEP_HOURS", "24"))  # delete undecided files after this
+KEEP_MINUTES = int(os.environ.get("KEEP_MINUTES", "30"))  # delete undecided files after this
+# Files of a request in progress. Whatever an interrupted request leaves here is swept away.
+WORK = STAGING / "work"
 ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
 
@@ -392,12 +395,12 @@ def stage(pdf_in: Path, title: str, work: Path, preset: str, images: list[Path] 
     meta = {"id": item_id, "title": title, "before": before, "after": pdf.stat().st_size,
             "images": len(images), "pages": page_count(pdf), "created": time.time()}
     (STAGING / f"{item_id}.json").write_text(json.dumps(meta))
-    app.logger.info("Staged %r (%s -> %s)", title, mb(before), mb(meta["after"]))
+    app.logger.info("Staged %r (%s -> %s)", masked(title), mb(before), mb(meta["after"]))
     return meta
 
 
 def staged_items() -> list[dict]:
-    limit = time.time() - KEEP_HOURS * 3600
+    limit = time.time() - KEEP_MINUTES * 60
     items = []
     for j in STAGING.glob("*.json"):
         try:
@@ -423,6 +426,49 @@ def item_paths(item_id: str) -> tuple[Path, Path]:
 def remove_item(item_id: str) -> None:
     for ext in (".pdf", ".json"):
         (STAGING / f"{item_id}{ext}").unlink(missing_ok=True)
+
+
+def remove_expired() -> None:
+    """Drops staged documents past KEEP_MINUTES, and files of a staging that was cut short."""
+    staged_items()
+    limit = time.time() - KEEP_MINUTES * 60
+    for f in STAGING.iterdir():
+        if f.is_file() and f.stat().st_mtime < limit:
+            f.unlink(missing_ok=True)
+
+
+def sweep_work(max_age: float) -> None:
+    """Removes what interrupted requests left in the work folder."""
+    limit = time.time() - max_age
+    for entry in WORK.iterdir():
+        try:
+            if entry.lstat().st_mtime >= limit:
+                continue
+            if entry.is_dir() and not entry.is_symlink():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink()
+        except OSError as e:
+            app.logger.warning("Could not remove %s: %s", entry.name, e)
+
+
+def janitor() -> None:
+    """Every minute: expired documents. Every hour: leftovers in the work folder."""
+    minutes = 0
+    while True:
+        time.sleep(60)
+        minutes += 1
+        try:
+            remove_expired()
+            if minutes % 60 == 0:
+                sweep_work(3600)
+        except Exception:
+            app.logger.exception("Cleanup failed")
+
+
+def masked(title: str) -> str:
+    """A document title as written to the log: only its first and last three characters."""
+    return f"{title[:3]}******{title[-3:]}" if len(title) > 6 else "******"
 
 
 def mb(n: int) -> str:
@@ -486,7 +532,7 @@ def compress():
     preset = QUALITY.get(request.form.get("quality", ""), QUALITY[DEFAULT_QUALITY])
     if not files:
         return {"error": "No file received."}, 400
-    with tempfile.TemporaryDirectory() as tmp:
+    with tempfile.TemporaryDirectory(dir=WORK) as tmp:
         work = Path(tmp)
         saved, kinds = [], set()
         for i, f in enumerate(files):
@@ -509,14 +555,14 @@ def compress():
             except (Image.DecompressionBombError, Image.DecompressionBombWarning):
                 return {"error": f"{title}: larger than {MAX_MEGAPIXELS} megapixels"}, 400
             except Exception as e:
-                app.logger.warning("Image conversion of %r failed: %s", title, e)
+                app.logger.warning("Image conversion of %r failed: %s", masked(title), e)
                 return {"error": f"{title}: the image could not be read"}, 400
         else:
             return {"error": "Send one PDF, or one or more images, per request."}, 400
         try:
             return {"item": stage(pdf, clean_title(title) or "Document", work, preset, images)}
         except Exception:
-            app.logger.exception("Error processing %r", title)
+            app.logger.exception("Error processing %r", masked(title))
             return {"error": f"{title}: processing failed"}, 500
 
 
@@ -539,10 +585,10 @@ def upload_item(item_id):
         reason = failure_reason(e)
         # Full traceback only for errors that are not explained by the reason already
         unexpected = not isinstance(e, (PaperlessError, requests.exceptions.RequestException))
-        app.logger.error("Upload of %r failed: %s | %s", title, reason, e, exc_info=unexpected)
+        app.logger.error("Upload of %r failed: %s | %s", masked(title), reason, e, exc_info=unexpected)
         return {"error": f"Upload failed – {reason}. File kept for retry."}, 502
     remove_item(item_id)
-    app.logger.info("Uploaded %r to Paperless (task %s)", title, task)
+    app.logger.info("Uploaded %r to Paperless (task %s)", masked(title), task)
     return {"title": title, "task": task if TASK_RE.match(task) else None}
 
 
@@ -552,7 +598,7 @@ def delete_item(item_id):
     pdf, meta = item_paths(item_id)
     title = json.loads(meta.read_text())["title"]
     remove_item(item_id)
-    app.logger.info("Deleted %r", title)
+    app.logger.info("Deleted %r", masked(title))
     return {"ok": True}
 
 
@@ -592,5 +638,11 @@ def favicon():
 def health():
     return "ok"
 
+
+# One worker serves all requests, so at start nothing in the work folder is in use
+shutil.rmtree(WORK, ignore_errors=True)
+WORK.mkdir(parents=True, exist_ok=True)
+remove_expired()
+threading.Thread(target=janitor, daemon=True).start()
 
 app.logger.info("%s started – Paperless at %s", APP_NAME, PAPERLESS_URL)

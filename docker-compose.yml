@@ -6,21 +6,17 @@ services:
     env_file:
       - secrets.env
     environment:
-      # Change to the container name of your Paperless webserver
-      PAPERLESS_URL: http://paperless-webserver-1:8000
-      # For your own name on the page: uncomment and change
-      # APP_NAME: Paperdrop
-      GS_QUALITY: ebook
-      MAX_UPLOAD_MB: 200
-      SESSION_MINUTES: 30
-      KEEP_HOURS: 24
-      LOG_LEVEL: INFO
+      PAPERLESS_URL: http://paperless-webserver-1:8000   # CHANGE: container name of your Paperless webserver
+      # APP_NAME: Paperdrop       # (optional) name shown on the page
+      # GS_QUALITY: ebook         # (optional) preselected compression: printer (light), ebook (balanced) or screen (strong)
+      # MAX_UPLOAD_MB: 200        # (optional) largest accepted file in MB
+      # SESSION_MINUTES: 30       # (optional) minutes a login stays valid without activity
+      # KEEP_MINUTES: 30          # (optional) minutes until files that were neither uploaded nor deleted are removed
+      # LOG_LEVEL: INFO           # (optional) DEBUG for more detail in the log
     volumes:
       - tmp:/tmp
-      # For your own logo: uncomment and change ./logo.png to the path of a PNG, JPG or WEBP file
-      # - ./logo.png:/logo:ro
-    # Limits what a harmful file could do inside the container: nothing but /tmp is
-    # writable, no extra privileges, and a cap on memory and processes.
+      # - ./logo.png:/logo:ro     # (optional) your own logo: change ./logo.png to the path of a PNG, JPG or WEBP file
+    # Security hardening, leave as it is
     read_only: true
     cap_drop:
       - ALL
@@ -28,8 +24,6 @@ services:
       - no-new-privileges:true
     mem_limit: 2g
     pids_limit: 200
-    expose:
-      - "8000"
     networks:
       - proxy
 
@@ -39,5 +33,4 @@ volumes:
 networks:
   proxy:
     external: true
-    # Change to the Docker network shared by your reverse proxy and Paperless
-    name: nginx_reverse_proxy
+    name: nginx_reverse_proxy   # CHANGE: Docker network shared by your reverse proxy and Paperless

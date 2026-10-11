@@ -31,7 +31,7 @@ html, body { margin: 0; background: var(--bg); }
 .brand span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .brand b { color: var(--amber); font-weight: inherit; }
 .top .grow { flex: 1; }
-.conn { display: none; align-items: center; gap: 7px; font: 12.5px var(--mono); color: var(--muted); }
+.conn { display: inline-flex; flex: none; white-space: nowrap; align-items: center; gap: 7px; font: 12.5px var(--mono); color: var(--muted); }
 .conn i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .conn.on i { background: var(--green); box-shadow: 0 0 0 3px #1fa67633; }
 .conn.off i { background: var(--red); box-shadow: 0 0 0 3px #e5574f33; }
@@ -133,7 +133,6 @@ html, body { margin: 0; background: var(--bg); }
   /* content stays in a centered column of 1120px; the header line still spans the screen */
   .top, .main, .foot { --side: max(28px, calc(50% - 560px)); }
   .top { padding: 16px var(--side); position: static; }
-  .conn { display: inline-flex; }
   .main { grid-template-columns: 380px minmax(0, 1fr); gap: 28px; padding: 24px var(--side); align-items: start; }
   .left { position: sticky; top: 24px; display: grid; gap: 16px; }
   .drop { padding: 36px 20px; }

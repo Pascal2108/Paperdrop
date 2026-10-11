@@ -267,9 +267,15 @@
   restartIdle();
   refresh();
 
-  api('/api/ping', {}, false).then(res => {
-    const conn = $('[data-conn]');
-    conn.classList.add(res.ok ? 'on' : 'off');
+  // Connection to Paperless, checked now and once a minute
+  const conn = $('[data-conn]');
+  async function checkPaperless() {
+    const res = await api('/api/ping', {}, false);
+    conn.classList.toggle('on', !!res.ok);
+    conn.classList.toggle('off', !res.ok);
     conn.title = res.detail || res.error || '';
-  });
+    $('[data-conn-short]', conn).textContent = res.ok ? 'Paperless' : 'Paperless off';
+  }
+  checkPaperless();
+  setInterval(checkPaperless, 60000);
 })();

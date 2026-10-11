@@ -13,7 +13,7 @@ It runs as a single Docker container behind your reverse proxy and needs no data
 - **Consume status**: the page shows whether Paperless consumed each upload, still has it in the queue, or rejected it as failed or duplicate
 - **Login without cookies**, with a lockout after repeated failed attempts
 - **Your own name and logo**, set in `docker-compose.yml`
-- **Readable logs**: a failed upload states its cause in the container log
+- **Readable logs**: a failed upload states its cause in the container log; document titles appear shortened, as in `Inv******023`
 
 The page is plain HTML, CSS and JavaScript served from the container. It loads nothing from other servers.
 
@@ -76,7 +76,7 @@ To check it, upload a file and open the document's **Permissions** tab in Paperl
 
 ### 4. Adjust `docker-compose.yml`
 
-Two values depend on your setup. Look them up with:
+Two values depend on your setup. Each has a `# CHANGE` comment at the end of its line. Look them up with:
 
 ```bash
 docker ps --format '{{.Names}}\t{{.Networks}}'
@@ -84,6 +84,10 @@ docker ps --format '{{.Names}}\t{{.Networks}}'
 
 - **`PAPERLESS_URL`**: `http://<name of the Paperless webserver container>:8000`. Use the port inside the container, not a published one.
 - **`networks.proxy.name`**: the Docker network that your reverse proxy and the Paperless webserver share.
+
+The lines that start with `#` and are marked `(optional)` can stay as they are; see [Configuration](#configuration). Leave the block under `Security hardening` unchanged: it limits what a harmful file could do inside the container.
+
+> **Security: use an internal network.** Paperdrop only ever talks to Paperless, so its network should have no route to the internet. Then a harmful file or a compromised library cannot send your documents anywhere. Create the network with `docker network create --internal <name>`, or set `internal: true` where it is defined, and let Paperdrop, the proxy and the Paperless webserver join it. The proxy has to stay in a second, normal network as well, or it can no longer be reached and cannot renew certificates.
 
 ### 5. Start
 
@@ -124,30 +128,36 @@ Put exactly one proxy in front of the app. The login lockout relies on the clien
 4. Click the page icon to open a PDF and edit the title if you like; Paperless receives the title as shown. Then choose **Upload** or **Delete**, or send everything with **Upload all**.
 5. **Sent to Paperless** lists what you uploaded since signing in, with its consume status.
 
-Files that are neither uploaded nor deleted are removed after `KEEP_HOURS`.
+Files that are neither uploaded nor deleted are removed after `KEEP_MINUTES`.
 
 The login is valid for `SESSION_MINUTES` without activity. No cookie is set, so reloading or reopening the page asks for the login again.
 
 ## Configuration
 
-These are set under `environment:` in `docker-compose.yml`.
+These are set under `environment:` in `docker-compose.yml`. Only `PAPERLESS_URL` is required. The others are listed there as comments with their default value:
+
+```yaml
+      # MAX_UPLOAD_MB: 200        # (optional) largest accepted file in MB
+```
+
+To change one, remove the `#` at the start of its line and set the value. The comment behind the value can stay. Then apply it with `docker compose up -d`.
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `PAPERLESS_URL` | required | Address of the Paperless webserver inside the Docker network |
+| `APP_NAME` | `Paperdrop` | Name shown on the page and in the browser tab |
 | `GS_QUALITY` | `ebook` | Compression strength that is preselected: `printer` (Light), `ebook` (Balanced) or `screen` (Strong) |
 | `MAX_UPLOAD_MB` | `200` | Largest accepted file, and the limit for images that are merged into one document |
 | `SESSION_MINUTES` | `30` | How long a login stays valid without activity |
-| `KEEP_HOURS` | `24` | How long undecided files are kept |
-| `APP_NAME` | `Paperdrop` | Name shown on the page and in the browser tab |
+| `KEEP_MINUTES` | `30` | How long files that were neither uploaded nor deleted are kept |
 | `LOG_LEVEL` | `INFO` | `DEBUG` for more detail |
 
 ### Your own name and logo
 
 Out of the box the page shows the Paperdrop name and logo. Both can be replaced in `docker-compose.yml`:
 
-- **Name:** uncomment `APP_NAME` and set it.
-- **Logo:** uncomment the logo line under `volumes:` and change `./logo.png` to the path of your file. It can be a PNG, JPG or WEBP image. Leave the part after the colon as it is.
+- **Name:** remove the `#` at the start of the `APP_NAME` line and set the name.
+- **Logo:** remove the `#` at the start of the logo line under `volumes:` and change `./logo.png` to the path of your file. It can be a PNG, JPG or WEBP image. Leave the part after the colon as it is.
 
 ```yaml
     environment:
