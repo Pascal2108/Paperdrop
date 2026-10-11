@@ -462,10 +462,15 @@ def logo_mimetype() -> str | None:
 
 LOGO_MIME = logo_mimetype()
 
+# Added to the address of the script and the stylesheet, so that a browser or a caching
+# proxy never pairs a new page with files it kept from the previous version
+ASSET_VERSION = hashlib.sha256(b"".join(
+    (Path(app.static_folder) / name).read_bytes() for name in ("app.js", "app.css"))).hexdigest()[:10]
+
 
 @app.context_processor
 def branding():
-    return {"app_name": APP_NAME, "own_name": APP_NAME == DEFAULT_NAME,
+    return {"app_name": APP_NAME, "own_name": APP_NAME == DEFAULT_NAME, "v": ASSET_VERSION,
             "logo": "/logo" if LOGO_MIME else None,
             "paperless_host": urlsplit(PAPERLESS_URL).hostname or PAPERLESS_URL}
 
