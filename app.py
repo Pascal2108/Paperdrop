@@ -11,6 +11,7 @@ import sys
 import tempfile
 import threading
 import time
+import warnings
 from functools import wraps
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -28,8 +29,11 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 logging.basicConfig(stream=sys.stdout, level=os.environ.get("LOG_LEVEL", "INFO").upper(),
                     format="%(asctime)s %(levelname)s %(message)s")
 
-# Protection against decompression bombs (huge pixel count in a small file)
-Image.MAX_IMAGE_PIXELS = 100_000_000
+# Protection against decompression bombs (huge pixel count in a small file).
+# Pillow only warns above its limit and refuses at twice that; here the limit is the limit.
+MAX_MEGAPIXELS = 120
+Image.MAX_IMAGE_PIXELS = MAX_MEGAPIXELS * 1_000_000
+warnings.simplefilter("error", Image.DecompressionBombWarning)
 
 PAPERLESS_URL = os.environ["PAPERLESS_URL"].rstrip("/")
 PAPERLESS_TOKEN = os.environ["PAPERLESS_TOKEN"]
@@ -45,6 +49,18 @@ LOGIN_USER = os.environ["UPLOADER_USER"]
 LOGIN_PASSWORD = os.environ["UPLOADER_PASSWORD"]
 SESSION_MINUTES = int(os.environ.get("SESSION_MINUTES", "30"))
 
+# The values in secrets.env.example are public: never run with them
+for _name, _example in (("UPLOADER_PASSWORD", "a-long-secure-password"),
+                        ("SECRET_KEY", "paste-random-key-here")):
+    if os.environ[_name] == _example:
+        logging.critical("%s still has the value from secrets.env.example. Set your own in "
+                         "secrets.env, then start the container again.", _name)
+        raise SystemExit(1)
+if len(LOGIN_PASSWORD) < 12:
+    logging.warning("UPLOADER_PASSWORD is shorter than 12 characters. Choose a longer one.")
+if len(os.environ["SECRET_KEY"]) < 32:
+    logging.warning("SECRET_KEY is short. Generate one with: openssl rand -hex 32")
+
 app = Flask(__name__)
 app.config.update(MAX_CONTENT_LENGTH=MAX_MB * 1024 * 1024)
 
@@ -53,8 +69,8 @@ app.config.update(MAX_CONTENT_LENGTH=MAX_MB * 1024 * 1024)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # No cookies. Signing in returns the page together with a random session token that
-# only lives in that page's memory and is sent in the body of every request, so it
-# doubles as CSRF protection. Reloading or reopening the page loses it.
+# only lives in that page's memory and is sent with every request, so it doubles as
+# CSRF protection. Reloading or reopening the page loses it.
 #
 # The login form itself works once: a browser repeats the last form when a page is
 # reloaded or a closed tab is restored, and would otherwise sign in again with the
@@ -66,15 +82,23 @@ _sessions: dict[str, float] = {}  # session token -> time of last activity
 _lock = threading.Lock()
 LOGIN_FORM_SECONDS = 12 * 3600  # how long an opened login page can still be submitted
 
-# Simple brute-force protection: max. 5 failed attempts per IP in 15 minutes,
-# plus a global max. of 20 failed attempts in 15 minutes (against rotating IPs)
+# Simple brute-force protection: max. 5 failed attempts per IP in 15 minutes.
+# There is no limit across all IPs: anyone could use it to keep the owner locked out.
 _failed: dict[str, list[float]] = {}
-_failed_all: list[float] = []
-MAX_TRIES, MAX_TRIES_GLOBAL, WINDOW = 5, 20, 15 * 60
+MAX_TRIES, WINDOW = 5, 15 * 60
+
+# Only the compress route takes files; every other request is a short form
+SMALL_BODY = 64 * 1024
 
 
 def client_ip() -> str:
     return request.remote_addr or "?"
+
+
+@app.before_request
+def limit_body():
+    if request.endpoint != "compress":
+        request.max_content_length = SMALL_BODY
 
 
 @app.after_request
@@ -94,8 +118,7 @@ def security_headers(resp):
 def locked(ip: str) -> bool:
     now = time.time()
     _failed[ip] = [t for t in _failed.get(ip, []) if now - t < WINDOW]
-    _failed_all[:] = [t for t in _failed_all if now - t < WINDOW]
-    return len(_failed[ip]) >= MAX_TRIES or len(_failed_all) >= MAX_TRIES_GLOBAL
+    return len(_failed[ip]) >= MAX_TRIES
 
 
 def _digest(s: str) -> bytes:
@@ -146,11 +169,20 @@ def login_page(error: str | None = None, status: int = 200):
     return render_template("login.html", error=error, once=_signer.dumps(secrets.token_hex(8))), status
 
 
-def login_required(view=None, *, touch: bool = True):
+def session_token(form: bool = False) -> str:
+    """The session token of this request.
+
+    It comes in a header, so that a request is turned away before its body is read.
+    Only "Open PDF" is a plain form posted to a new tab and carries it as a field.
+    """
+    return request.form.get("auth", "") if form else request.headers.get("X-Auth", "")
+
+
+def login_required(view=None, *, touch: bool = True, form: bool = False):
     def decorator(view):
         @wraps(view)
         def wrapper(*args, **kwargs):
-            if not session_valid(request.form.get("auth", ""), touch):
+            if not session_valid(session_token(form), touch):
                 if is_api():
                     return {"error": "signed out"}, 401
                 return login_page("Please sign in again.", 401)
@@ -184,7 +216,6 @@ def login():
         })
     else:
         _failed.setdefault(ip, []).append(time.time())
-        _failed_all.append(time.time())
         app.logger.warning("Failed login from %s", ip)
         time.sleep(1)
         error = "Invalid username or password."
@@ -195,7 +226,7 @@ def login():
 @login_required
 def logout():
     with _lock:
-        _sessions.pop(request.form["auth"], None)
+        _sessions.pop(session_token(), None)
     return {"ok": True}
 
 
@@ -210,8 +241,14 @@ def http_error(e):
     return e
 
 
+# Photos are placed on A4 pages, turned to landscape where the photo is wider than tall.
+# The picture keeps its proportions and its pixels; only the page around it is fixed.
+A4 = (img2pdf.mm_to_pt(210), img2pdf.mm_to_pt(297))
+A4_LAYOUT = img2pdf.get_layout_fun(pagesize=A4, auto_orient=True)
+
+
 def images_to_pdf(images: list[Path], out: Path) -> None:
-    """JPGs and PNGs -> PDF, applying EXIF rotation first."""
+    """JPGs and PNGs -> A4 PDF, applying EXIF rotation first."""
     fixed = []
     for img_path in images:
         with Image.open(img_path, formats=["JPEG", "PNG"]) as im:
@@ -225,7 +262,7 @@ def images_to_pdf(images: list[Path], out: Path) -> None:
             p = img_path.with_suffix(".fixed.jpg")
             im.convert("RGB").save(p, "JPEG", quality=90)
             fixed.append(str(p))
-    out.write_bytes(img2pdf.convert(fixed))
+    out.write_bytes(img2pdf.convert(fixed, layout_fun=A4_LAYOUT))
 
 
 def compress_pdf(src: Path, dst: Path, preset: str) -> Path:
@@ -464,6 +501,8 @@ def compress():
             pdf, images, title = work / "merged.pdf", saved, joined_title(stems)
             try:
                 images_to_pdf(images, pdf)
+            except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+                return {"error": f"{title}: larger than {MAX_MEGAPIXELS} megapixels"}, 400
             except Exception as e:
                 app.logger.warning("Image conversion of %r failed: %s", title, e)
                 return {"error": f"{title}: the image could not be read"}, 400
@@ -477,7 +516,7 @@ def compress():
 
 
 @app.post("/item/<item_id>/view")
-@login_required
+@login_required(form=True)
 def view_item(item_id):
     pdf, meta = item_paths(item_id)
     title = json.loads(meta.read_text())["title"]

@@ -7,7 +7,7 @@ It runs as a single Docker container behind your reverse proxy and needs no data
 ## Features
 
 - **PDF, JPG and PNG upload** by drag and drop or from the file picker; on a phone, **Scan with camera** opens the camera directly
-- **Photos become PDFs**, one per photo or several merged into one document, with the rotation from the camera applied
+- **Photos become A4 PDFs**, one per photo or several merged into one document, with the rotation from the camera applied; uploaded PDFs keep their own page size
 - **Compression with Ghostscript** in three strengths; the smaller of the original and the compressed file is kept
 - **Review before sending**: every file shows its size before and after, can be opened and renamed, then uploaded or deleted, one by one or all at once
 - **Consume status**: the page shows whether Paperless consumed each upload, still has it in the queue, or rejected it as failed or duplicate
@@ -147,12 +147,13 @@ These are set under `environment:` in `docker-compose.yml`.
 Out of the box the page shows the Paperdrop name and logo. Both can be replaced in `docker-compose.yml`:
 
 - **Name:** uncomment `APP_NAME` and set it.
-- **Logo:** uncomment the `volumes:` block and change `./logo.png` to the path of your file. It can be a PNG, JPG or WEBP image. Leave the part after the colon as it is.
+- **Logo:** uncomment the logo line under `volumes:` and change `./logo.png` to the path of your file. It can be a PNG, JPG or WEBP image. Leave the part after the colon as it is.
 
 ```yaml
     environment:
       APP_NAME: Family Archive
     volumes:
+      - tmp:/tmp
       - ./logo.png:/logo:ro
 ```
 
@@ -171,6 +172,8 @@ When an upload fails, the page and the container log both state the cause. Read 
 | Uploads stay on "sent" | The token's user may not view tasks; see step 2 |
 | `502 Bad Gateway` from the proxy | The container is not running, or the forward hostname or network is wrong |
 | `Too many failed attempts` | Five wrong logins from one address; wait 15 minutes |
+| Container keeps restarting | `secrets.env` still has the example password or `SECRET_KEY`; the log names which |
+| `larger than 120 megapixels` | The photo is too large to process safely; take it at a lower resolution |
 
 ## Updating
 

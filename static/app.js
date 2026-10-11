@@ -24,11 +24,10 @@
   // touch=false for background requests, which do not count as activity
   async function api(path, data = {}, touch = true) {
     const body = new FormData();
-    body.append('auth', boot.auth);
     for (const [key, value] of Object.entries(data))
       for (const v of [].concat(value)) body.append(key, v);
     let res;
-    try { res = await fetch(path, { method: 'POST', body }); }
+    try { res = await fetch(path, { method: 'POST', headers: { 'X-Auth': boot.auth }, body }); }
     catch { return { error: 'No connection to the server.' }; }
     if (res.status === 401) { leave(); return new Promise(() => {}); }
     if (touch) restartIdle();
@@ -59,7 +58,7 @@
     $('[data-count]').textContent = docs.length;
     $('[data-queue-empty]').hidden = docs.length > 0;
     $$('[data-n]').forEach(n => n.textContent = ready);
-    $$('[data-all]').forEach(b => b.disabled = !ready || working);
+    $$('[data-all]').forEach(b => { b.disabled = !ready || working; b.classList.toggle('gone', !ready); });
     $('[data-dock]').hidden = !ready;
     $('[data-sent-empty]').hidden = sentList.children.length > 0;
     sentList.hidden = !sentList.children.length;

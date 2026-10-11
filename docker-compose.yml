@@ -15,13 +15,26 @@ services:
       SESSION_MINUTES: 30
       KEEP_HOURS: 24
       LOG_LEVEL: INFO
-    # For your own logo: uncomment and change ./logo.png to the path of a PNG, JPG or WEBP file
-    # volumes:
-    #   - ./logo.png:/logo:ro
+    volumes:
+      - tmp:/tmp
+      # For your own logo: uncomment and change ./logo.png to the path of a PNG, JPG or WEBP file
+      # - ./logo.png:/logo:ro
+    # Limits what a harmful file could do inside the container: nothing but /tmp is
+    # writable, no extra privileges, and a cap on memory and processes.
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    pids_limit: 200
     expose:
       - "8000"
     networks:
       - proxy
+
+volumes:
+  tmp:
 
 networks:
   proxy:
