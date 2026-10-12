@@ -1,3 +1,12 @@
+# Paperdrop - sends documents to Paperless-ngx after compression and review
+# Copyright (C) 2026 Pascal2108
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of
+# the GNU Affero General Public License, version 3, as published by the Free Software Foundation.
+# It comes WITHOUT ANY WARRANTY. See the file LICENSE for the full text.
+#
+# SPDX-License-Identifier: AGPL-3.0-only
+
 import hashlib
 import hmac
 import json
@@ -523,6 +532,12 @@ DEFAULT_NAME = "Paperdrop"
 APP_NAME = os.environ.get("APP_NAME", "").strip() or DEFAULT_NAME
 LOGO = Path(os.environ.get("LOGO_PATH", "/logo"))
 
+# Colours of the page: dark, light, or auto, which follows the setting of the device
+THEME = os.environ.get("THEME", "").strip().lower() or "dark"
+if THEME not in ("dark", "light", "auto"):
+    logging.warning("THEME must be dark, light or auto, not %r. Using dark.", THEME)
+    THEME = "dark"
+
 
 def logo_mimetype() -> str | None:
     """MIME type of the mounted logo, or None if there is none or it is unusable."""
@@ -550,7 +565,7 @@ ASSET_VERSION = hashlib.sha256(b"".join(
 
 @app.context_processor
 def branding():
-    return {"app_name": APP_NAME, "own_name": APP_NAME == DEFAULT_NAME, "v": ASSET_VERSION,
+    return {"app_name": APP_NAME, "own_name": APP_NAME == DEFAULT_NAME, "v": ASSET_VERSION, "theme": THEME,
             "logo": "/logo" if LOGO_MIME else None,
             "paperless_host": urlsplit(PAPERLESS_URL).hostname or PAPERLESS_URL}
 

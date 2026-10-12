@@ -1,3 +1,5 @@
+// Paperdrop, Copyright (C) 2026 Pascal2108
+// SPDX-License-Identifier: AGPL-3.0-only
 (() => {
   'use strict';
 

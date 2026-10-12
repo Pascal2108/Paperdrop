@@ -2,7 +2,7 @@ name: Build and publish image
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
   schedule:
     - cron: "0 4 * * 1"   # weekly rebuild, picks up security updates of the base image and libraries
   workflow_dispatch:
@@ -32,4 +32,5 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/pascal2108/paperdrop:latest
+          # main is published as :latest, the beta branch as :beta
+          tags: ghcr.io/pascal2108/paperdrop:${{ github.ref_name == 'main' && 'latest' || 'beta' }}

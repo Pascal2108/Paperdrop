@@ -8,14 +8,16 @@ services:
     environment:
       PAPERLESS_URL: http://paperless-webserver-1:8000   # CHANGE: container name of your Paperless webserver
       # APP_NAME: Paperdrop       # (optional) name shown on the page
+      # THEME: dark               # (optional) colours of the page: dark, light or auto (follows the device)
       # GS_QUALITY: ebook         # (optional) preselected compression: printer (light), ebook (balanced) or screen (strong)
       # MAX_UPLOAD_MB: 200        # (optional) largest accepted file in MB
       # SESSION_HOURS: 24         # (optional) hours you stay signed in
       # KEEP_MINUTES: 30          # (optional) minutes until files that were neither uploaded nor deleted are removed
       # LOG_LEVEL: INFO           # (optional) DEBUG for more detail in the log
-    volumes:
-      - tmp:/tmp
-      # - ./logo.png:/logo:ro     # (optional) your own logo: change ./logo.png to the path of a PNG, JPG or WEBP file
+    # volumes:                    # (optional) your own logo: remove the # on this line and the next,
+    #   - ./logo.png:/logo:ro     #   then change ./logo.png to the path of a PNG, JPG or WEBP file
+    tmpfs:
+      - /tmp:size=1g              # files in progress stay in memory and are never written to disk
     # Security hardening, leave as it is
     read_only: true
     cap_drop:
@@ -26,9 +28,6 @@ services:
     pids_limit: 200
     networks:
       - proxy
-
-volumes:
-  tmp:
 
 networks:
   proxy:

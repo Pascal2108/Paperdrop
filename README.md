@@ -12,7 +12,7 @@ It runs as a single Docker container behind your reverse proxy and needs no data
 - **Review before sending**: every file shows its size before and after, can be opened and renamed, then uploaded or deleted, one by one or all at once
 - **Consume status**: the page shows whether Paperless consumed each upload, still has it in the queue, or rejected it as failed or duplicate
 - **Login that lasts 24 hours**, also across reloads, with a lockout after repeated failed attempts
-- **Your own name and logo**, set in `docker-compose.yml`
+- **Dark, light or automatic theme**, and your own name and logo, all set in `docker-compose.yml`
 - **Readable logs**: a failed upload states its cause in the container log; document titles appear shortened, as in `Inv******023`
 
 The page is plain HTML, CSS and JavaScript served from the container. It loads nothing from other servers.
@@ -128,7 +128,7 @@ Put exactly one proxy in front of the app. The login lockout relies on the clien
 4. Click the page icon to open a PDF and edit the title if you like; Paperless receives the title as shown. Then choose **Upload** or **Delete**, or send everything with **Upload all**.
 5. **Sent to Paperless** lists what you uploaded since signing in, with its consume status.
 
-Files that are neither uploaded nor deleted are removed after `KEEP_MINUTES`.
+Files that are neither uploaded nor deleted are removed after `KEEP_MINUTES`. Until then they are kept in the container's memory, not on disk, so a restart of the container removes them as well.
 
 You stay signed in for `SESSION_HOURS`, counted from signing in, also when you reload the page or close the browser. The login is kept in one cookie that scripts cannot read and that is sent over HTTPS only. **Sign out** ends it at once; so does a restart of the container. The login only works from the address you signed in from, so a device whose address changes has to sign in again.
 
@@ -146,6 +146,7 @@ To change one, remove the `#` at the start of its line and set the value. The co
 |---|---|---|
 | `PAPERLESS_URL` | required | Address of the Paperless webserver inside the Docker network |
 | `APP_NAME` | `Paperdrop` | Name shown on the page and in the browser tab |
+| `THEME` | `dark` | Colours of the page: `dark`, `light`, or `auto`, which follows the light or dark setting of each device |
 | `GS_QUALITY` | `ebook` | Compression strength that is preselected: `printer` (Light), `ebook` (Balanced) or `screen` (Strong) |
 | `MAX_UPLOAD_MB` | `200` | Largest accepted file, and the limit for images that are merged into one document |
 | `SESSION_HOURS` | `24` | How long you stay signed in |
@@ -157,13 +158,12 @@ To change one, remove the `#` at the start of its line and set the value. The co
 Out of the box the page shows the Paperdrop name and logo. Both can be replaced in `docker-compose.yml`:
 
 - **Name:** remove the `#` at the start of the `APP_NAME` line and set the name.
-- **Logo:** remove the `#` at the start of the logo line under `volumes:` and change `./logo.png` to the path of your file. It can be a PNG, JPG or WEBP image. Leave the part after the colon as it is.
+- **Logo:** remove the `#` at the start of the `volumes:` line and of the logo line below it, then change `./logo.png` to the path of your file. It can be a PNG, JPG or WEBP image. Leave the part after the colon as it is.
 
 ```yaml
     environment:
       APP_NAME: Family Archive
     volumes:
-      - tmp:/tmp
       - ./logo.png:/logo:ro
 ```
 
@@ -184,6 +184,7 @@ When an upload fails, the page and the container log both state the cause. Read 
 | `Too many failed attempts` | Five wrong logins from one address; wait 15 minutes |
 | Signed out before the time is up | The container was restarted, or the device's address changed; the log then shows `Session started from … refused for …` |
 | Container keeps restarting | `secrets.env` still has the example password or `SECRET_KEY`; the log names which |
+| `Server error (500)` on a very large file | The 1 GB of memory for files in progress is full; upload or delete what is waiting for review, or raise `size=1g` under `tmpfs:` in `docker-compose.yml` together with `mem_limit` |
 | `larger than 120 megapixels` | The photo is too large to process safely; take it at a lower resolution |
 
 ## Updating
@@ -193,3 +194,35 @@ docker compose pull && docker compose up -d
 ```
 
 A new image is published on every push to `main` and once a week, so that security updates of the base image and the libraries are included. Tools such as Watchtower pick it up automatically.
+
+## Legal
+
+This section is information from the author, not legal advice.
+
+### Not for the public internet
+
+Paperdrop is built for private use inside a network you control: a home network or a VPN such as Tailscale or WireGuard. It is **not meant to be reachable from the public internet**. It has one shared login, no user management and no two-factor authentication, and it has not been audited by anyone. Do not publish its port, do not forward a port to it, and do not put it behind a proxy that is open to the internet.
+
+### License
+
+Paperdrop is free software under the [GNU Affero General Public License, version 3](LICENSE) (AGPL-3.0).
+Copyright (C) 2026 Pascal2108.
+
+- You may use, study, change and share it.
+- If you share it, changed or not, you have to pass on the same rights: keep the license and the copyright notice, and make the source code available.
+- This also applies if you change it and let other people use your version over a network, without handing them a copy. They are entitled to the source code of your version.
+
+The image also contains other software under its own licenses, among them Ghostscript (AGPL-3.0), which Paperdrop runs as a separate program.
+
+### No warranty, no liability
+
+Paperdrop is a private project, provided as it is and without warranty of any kind, as sections 15 and 16 of the license state. You run it at your own risk. To the extent the law permits, the author is not liable for damage, data loss, leaked or lost documents, or any other consequence of installing, running or misconfiguring it. You are responsible for securing your server, for keeping it updated and for the documents you process with it.
+
+### Cookies and personal data
+
+- **One cookie:** Paperdrop sets a single cookie, `__Host-paperdrop`, when you sign in. It holds a random session token, lasts for `SESSION_HOURS`, and is removed when you sign out. Without it the login cannot work.
+- **No tracking:** there are no analytics, advertising or third-party cookies, and the page loads nothing from other servers.
+- **Consent:** a cookie that is strictly necessary for a service the user asked for generally needs no consent banner under the EU ePrivacy rules (in Germany § 25 TDDDG). This fits a login cookie, but the assessment for your own installation is yours.
+- **Personal data:** the container log records the address of each device that signs in or fails to. The documents themselves stay in memory until you upload or delete them and are then sent only to your Paperless instance.
+
+If other people use your installation, you are its operator: informing them and complying with data protection law, such as the GDPR, is your responsibility.

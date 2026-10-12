@@ -2,7 +2,8 @@ FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="Paperdrop" \
       org.opencontainers.image.description="Self-hosted web page that compresses PDFs and photos and sends them to Paperless-ngx after review." \
-      org.opencontainers.image.source="https://github.com/Pascal2108/paperdrop"
+      org.opencontainers.image.source="https://github.com/Pascal2108/paperdrop" \
+      org.opencontainers.image.licenses="AGPL-3.0-only"
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ghostscript \
@@ -15,7 +16,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py .
+COPY app.py LICENSE ./
 COPY templates/ templates/
 COPY static/ static/
 
