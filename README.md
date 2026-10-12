@@ -195,6 +195,18 @@ docker compose pull && docker compose up -d
 
 A new image is published on every push to `main` and once a week, so that security updates of the base image and the libraries are included. Tools such as Watchtower pick it up automatically.
 
+### Versions
+
+The image is published under these tags. Set the one you want in the `image:` line of `docker-compose.yml`.
+
+| Tag | Contains | Changes |
+|---|---|---|
+| `latest` | The current stable version | With every release, and weekly for security updates |
+| `1.0.0`, `1.1.0`, … | Exactly that [release](https://github.com/Pascal2108/paperdrop/releases) | Never; it also receives no security updates |
+| `beta` | What is being tested for the next release | Often; it may break |
+
+Use `latest` unless you have a reason not to. A version number is for going back when an update causes trouble: the release notes say what changed and whether you have to adjust your `docker-compose.yml`.
+
 ## Legal
 
 This section is information from the author, not legal advice.
