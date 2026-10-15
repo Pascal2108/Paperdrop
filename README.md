@@ -4,11 +4,15 @@ A small self-hosted web page for sending documents to [Paperless-ngx](https://do
 
 It runs as a single Docker container behind your reverse proxy and needs no database.
 
+![Paperdrop on a desktop: two scans waiting to be merged, three compressed documents ready for review, and two documents Paperless has consumed](docs/screenshots/desktop.png)
+
 ## Features
+
+<img src="docs/screenshots/phone.png" alt="Paperdrop on a phone, with the Scan with camera button" width="240" align="right">
 
 - **PDF, JPG and PNG upload** by drag and drop or from the file picker; on a phone, **Scan with camera** opens the camera directly
 - **Photos become A4 PDFs**, one per photo or several merged into one document, with the rotation from the camera applied; large photos are fitted to the page, small images such as screenshots keep their size; uploaded PDFs keep their own page size
-- **Merging**: all photos into one PDF, or all files, PDFs and photos together, into one PDF in the order of the list
+- **Merging**: all photos into one PDF, or all files, PDFs and photos together, into one PDF in the order of the list, which you set by dragging
 - **Compression with Ghostscript** in three strengths; the smaller of the original and the compressed file is kept
 - **Review before sending**: every file shows its size before and after, can be opened and renamed, then uploaded or deleted, one by one or all at once
 - **Consume status**: the page shows whether Paperless consumed each upload, still has it in the queue, or rejected it as failed or duplicate
@@ -16,7 +20,9 @@ It runs as a single Docker container behind your reverse proxy and needs no data
 - **Dark, light or automatic theme**, and your own name and logo, all set in `docker-compose.yml`
 - **Readable logs**: a failed upload states its cause in the container log; document titles appear shortened, as in `Inv******023`
 
-The page is plain HTML, CSS and JavaScript served from the container. It loads nothing from other servers.
+The page is plain HTML, CSS and JavaScript served from the container. It loads nothing from other servers. The screenshots show made-up sample documents.
+
+<br clear="right">
 
 ## Requirements
 
