@@ -21,13 +21,13 @@ A small self-hosted web page that **compresses PDFs and photos and sends them to
 
 Paperdrop runs next to Paperless-ngx, behind a reverse proxy that provides HTTPS. You need two files.
 
-`secrets.env`:
+`secrets.env`, with every value replaced by your own (Paperdrop refuses to start with these examples; create the key with `openssl rand -hex 32`):
 
 ```
-PAPERLESS_TOKEN=your-paperless-api-token
+PAPERLESS_TOKEN=your-token-here
 UPLOADER_USER=your-username
-UPLOADER_PASSWORD=a-long-password-of-your-own
-SECRET_KEY=output-of-openssl-rand-hex-32
+UPLOADER_PASSWORD=a-long-secure-password
+SECRET_KEY=paste-random-key-here
 ```
 
 `docker-compose.yml`:

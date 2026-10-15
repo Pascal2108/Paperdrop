@@ -17,7 +17,11 @@ ENV XDG_CACHE_HOME=/tmp/.cache
 
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# pip is not needed once the packages are in, and its own bundled libraries only add
+# attack surface and findings in vulnerability scans
+RUN pip install --no-cache-dir -r requirements.txt \
+ && pip uninstall -y pip \
+ && rm -rf "$(python -c 'import ensurepip, os; print(os.path.dirname(ensurepip.__file__))')"
 
 COPY app.py LICENSE ./
 COPY templates/ templates/
