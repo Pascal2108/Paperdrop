@@ -34,7 +34,7 @@ cd paperdrop
 cp secrets.env.example secrets.env
 ```
 
-Only `docker-compose.yml` and `secrets.env` are needed on the server. The image itself is pulled from `ghcr.io/pascal2108/paperdrop`.
+Only `docker-compose.yml` and `secrets.env` are needed on the server. The image itself is pulled from `ghcr.io/pascal2108/paperdrop`. The same image is also on [Docker Hub](https://hub.docker.com/r/pascal2108/paperdrop) as `pascal2108/paperdrop`; either works in the `image:` line.
 
 ### 2. Create a Paperless token
 

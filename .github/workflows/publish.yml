@@ -24,6 +24,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Check Docker Hub settings
+        env:
+          USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          [ -n "$USERNAME" ] || { echo "::error::Repository variable DOCKERHUB_USERNAME is not set"; exit 1; }
+          [ -n "$TOKEN" ] || { echo "::error::Repository secret DOCKERHUB_TOKEN is not set"; exit 1; }
+
       # main is published as :latest, the beta branch as :beta, the tag v1.0.0 as :1.0.0
       - id: image
         run: |
@@ -39,6 +47,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # The same image also goes to Docker Hub. The token there only needs Read & Write:
+      # the repository overview is edited by hand, so no token that may delete is ever stored.
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       # Build for Intel/AMD and ARM servers (e.g. Raspberry Pi, ARM cloud instances)
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -48,7 +63,9 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/pascal2108/paperdrop:${{ steps.image.outputs.tag }}
+          tags: |
+            ghcr.io/pascal2108/paperdrop:${{ steps.image.outputs.tag }}
+            docker.io/${{ vars.DOCKERHUB_USERNAME }}/paperdrop:${{ steps.image.outputs.tag }}
 
   # A version tag also gets a release page on GitHub, once its image exists.
   # A tag with a suffix such as v1.0.2-beta.1 is marked as a pre-release, never as the latest.
