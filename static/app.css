@@ -75,6 +75,9 @@ html, body { margin: 0; background: var(--bg); }
 .app > .unsafes { padding: 14px 16px 0; }
 .unsafe { color: var(--err-text); background: #e5574f1f; border: 1px solid var(--red); border-radius: 9px; padding: 9px 12px; font-size: .88rem; line-height: 1.45; }
 .unsafe b { color: var(--red); }
+/* Same size as the strong notice, quieter only in its colours */
+.unsafe.soft { color: var(--muted); background: none; border-color: #f5a62359; }
+.unsafe.soft b { color: var(--accent); }
 .login-hint { color: var(--muted); font-size: .85rem; line-height: 1.45; margin: 0; }
 .main > * { min-width: 0; }
 .h { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; font-size: 1rem; font-weight: 650; }

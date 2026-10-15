@@ -176,7 +176,7 @@ Apply the change with `docker compose up -d`. If the logo does not appear, the c
 ### Unsafe options
 
 > [!WARNING]
-> These options remove protection. Use them only in a network where you trust **every device and every person**, and never when Paperdrop can be reached from the internet. While one is on, the container log warns at every start and every page shows a red notice that cannot be hidden.
+> These options remove protection. Use them only in a network where you trust **every device and every person**, and never when Paperdrop can be reached from the internet. While one is on, the container log warns at every start and every page shows a notice that cannot be hidden: a quiet one for the missing login, a red one for an unencrypted connection.
 
 **`UNSAFE_NO_LOGIN: "true"`** removes the login. Whoever can open the page can see the files waiting for review and send documents into your Paperless, with the rights of the Paperless user behind `PAPERLESS_TOKEN`. That includes every device in the network, guests and any compromised device. `UPLOADER_USER`, `UPLOADER_PASSWORD` and `SECRET_KEY` are then not needed. Other websites still cannot act on the page on your behalf.
 

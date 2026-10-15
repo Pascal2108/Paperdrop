@@ -666,14 +666,19 @@ def branding():
             "http_hint": not (NO_LOGIN or ALLOW_HTTP or request.is_secure or is_local_host())}
 
 
-def unsafe_notes() -> list[str]:
-    """The warnings shown on every page while an unsafe option is in effect."""
+def unsafe_notes() -> list[dict]:
+    """The warnings shown on every page while an unsafe option is in effect.
+
+    "soft" is a quieter line for a setting chosen on purpose that stays the same on every visit;
+    "strong" is for what puts this very connection at risk.
+    """
     notes = []
     if NO_LOGIN:
-        notes.append("There is no login. Anyone who can open this page can send documents to Paperless.")
+        notes.append({"level": "soft", "text": "No login: anyone who can open this page can send documents to Paperless."})
     if ALLOW_HTTP and not request.is_secure:
-        notes.append("This connection is not encrypted. Documents" + ("" if NO_LOGIN else " and your password")
-                     + " travel in plain text and can be read by others on the network.")
+        notes.append({"level": "strong", "text": "This connection is not encrypted. Documents"
+                      + ("" if NO_LOGIN else " and your password")
+                      + " travel in plain text and can be read by others on the network."})
     return notes
 
 
