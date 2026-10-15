@@ -213,6 +213,8 @@ Use `latest` unless you have a reason not to. A version number is for going back
 
 Open an [issue on GitHub](https://github.com/Pascal2108/paperdrop/issues/new/choose) (a free account is needed) and choose **Bug report** or **Feature request**; for a question, open a blank issue. Issues are public, so leave out tokens, passwords, host names and document titles.
 
+Found a security problem? Please do not open an issue; report it privately as described in [SECURITY.md](SECURITY.md).
+
 ## Legal
 
 This section is information from the author, not legal advice.
