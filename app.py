@@ -21,6 +21,7 @@ import tempfile
 import threading
 import time
 import warnings
+from contextlib import ExitStack
 from functools import wraps
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -124,6 +125,9 @@ def security_headers(resp):
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "no-referrer"
+    if request.is_secure:
+        # The session cookie works over HTTPS only anyway: have the browser never try plain HTTP
+        resp.headers["Strict-Transport-Security"] = "max-age=31536000"
     if resp.mimetype == "text/html":
         resp.headers["Content-Security-Policy"] = (
             "default-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
@@ -135,8 +139,16 @@ def security_headers(resp):
 
 def locked(ip: str) -> bool:
     now = time.time()
-    _failed[ip] = [t for t in _failed.get(ip, []) if now - t < WINDOW]
-    return len(_failed[ip]) >= MAX_TRIES
+    with _lock:
+        # Addresses without a recent failure are forgotten, so the list cannot grow without end
+        for old in [i for i, ts in _failed.items() if now - ts[-1] >= WINDOW]:
+            del _failed[old]
+        return len([t for t in _failed.get(ip, []) if now - t < WINDOW]) >= MAX_TRIES
+
+
+def note_failure(ip: str) -> None:
+    with _lock:
+        _failed.setdefault(ip, []).append(time.time())
 
 
 def _digest(s: str) -> bytes:
@@ -246,11 +258,12 @@ def login():
     if locked(ip):
         return redirect("/?m=locked", 303)
     if not check_credentials(request.form.get("user", ""), request.form.get("password", "")):
-        _failed.setdefault(ip, []).append(time.time())
+        note_failure(ip)
         app.logger.warning("Failed login from %s", ip)
         time.sleep(1)
         return redirect("/?m=invalid", 303)
-    _failed.pop(ip, None)
+    with _lock:
+        _failed.pop(ip, None)
     app.logger.info("Login from %s", ip)
     if not request.is_secure:
         app.logger.warning("Login over plain HTTP: the browser will not keep the session cookie. "
@@ -306,6 +319,20 @@ def images_to_pdf(images: list[Path], out: Path) -> None:
             im.convert("RGB").save(p, "JPEG", quality=90)
             fixed.append(str(p))
     out.write_bytes(img2pdf.convert(fixed, layout_fun=A4_LAYOUT))
+
+
+def merge_to_pdf(parts: list[tuple[Path, str]], out: Path) -> None:
+    """PDFs and images -> one PDF, in the given order. Images become A4 pages, PDFs keep theirs."""
+    with ExitStack() as stack:
+        merged = stack.enter_context(pikepdf.new())
+        for path, kind in parts:
+            if kind == "image":
+                page = path.with_suffix(".pdf")
+                images_to_pdf([path], page)
+                path = page
+            # The source stays open until the result is saved: pages are copied from it only then
+            merged.pages.extend(stack.enter_context(pikepdf.open(path)).pages)
+        merged.save(out)
 
 
 def compress_pdf(src: Path, dst: Path, preset: str) -> Path:
@@ -424,19 +451,19 @@ WORK = STAGING / "work"
 ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
 
-def stage(pdf_in: Path, title: str, work: Path, preset: str, images: list[Path] = ()) -> dict:
+def stage(pdf_in: Path, title: str, work: Path, preset: str, sources: list[Path], images: int) -> dict:
     """Compresses and stores the result for review.
 
-    For a PDF made from photos, `images` are the originals: the size shown as
-    "before" is theirs, so the saving is measured against what was uploaded.
+    `sources` are the uploaded files the PDF was made from, `images` how many of them are
+    photos. The size shown as "before" is theirs, so the saving is measured against what was uploaded.
     """
-    before = sum(p.stat().st_size for p in images) if images else pdf_in.stat().st_size
+    before = sum(p.stat().st_size for p in sources)
     final = compress_pdf(pdf_in, work / f"{secrets.token_hex(4)}.compressed.pdf", preset)
     item_id = secrets.token_hex(16)
     pdf = STAGING / f"{item_id}.pdf"
     shutil.move(str(final), pdf)
     meta = {"id": item_id, "title": title, "before": before, "after": pdf.stat().st_size,
-            "images": len(images), "pages": page_count(pdf), "created": time.time()}
+            "files": len(sources), "images": images, "pages": page_count(pdf), "created": time.time()}
     (STAGING / f"{item_id}.json").write_text(json.dumps(meta))
     app.logger.info("Staged %r (%s -> %s)", masked(title), mb(before), mb(meta["after"]))
     return meta
@@ -523,7 +550,7 @@ def clean_title(raw: str) -> str:
 
 
 def joined_title(stems: list[str]) -> str:
-    """Title for several photos merged into one document."""
+    """Title for one or more files merged into one document."""
     return " + ".join(stems) if len(stems) <= 2 else f"{stems[0]} + {len(stems) - 1} more"
 
 
@@ -576,14 +603,14 @@ MAGIC = {b"%PDF-": "pdf", b"\xff\xd8\xff": "image", b"\x89PNG\r\n\x1a\n": "image
 @app.post("/api/compress")
 @login_required
 def compress():
-    """Turns the uploaded files into one staged document: a single PDF, or one or more photos."""
+    """Turns the uploaded files into one staged document, merged in the order they were sent."""
     files = [f for f in request.files.getlist("files") if f.filename]
     preset = QUALITY.get(request.form.get("quality", ""), QUALITY[DEFAULT_QUALITY])
     if not files:
         return {"error": "No file received."}, 400
     with tempfile.TemporaryDirectory(dir=WORK) as tmp:
         work = Path(tmp)
-        saved, kinds = [], set()
+        saved, kinds = [], []
         for i, f in enumerate(files):
             dest = work / f"{i}.upload"
             f.save(dest)
@@ -593,23 +620,28 @@ def compress():
             if not kind:
                 return {"error": f"{f.filename}: only PDF, JPG and PNG are allowed"}, 400
             saved.append(dest)
-            kinds.add(kind)
+            kinds.append(kind)
         stems = [Path(f.filename).stem for f in files]
-        if kinds == {"pdf"} and len(saved) == 1:
-            pdf, images, title = saved[0], [], stems[0]
-        elif kinds == {"image"}:
-            pdf, images, title = work / "merged.pdf", saved, joined_title(stems)
-            try:
-                images_to_pdf(images, pdf)
-            except (Image.DecompressionBombError, Image.DecompressionBombWarning):
-                return {"error": f"{title}: larger than {MAX_MEGAPIXELS} megapixels"}, 400
-            except Exception as e:
-                app.logger.warning("Image conversion of %r failed: %s", masked(title), e)
-                return {"error": f"{title}: the image could not be read"}, 400
+        title = joined_title(stems)
+        if kinds == ["pdf"]:
+            pdf = saved[0]
         else:
-            return {"error": "Send one PDF, or one or more images, per request."}, 400
+            pdf = work / "merged.pdf"
+            try:
+                if "pdf" in kinds:
+                    merge_to_pdf(list(zip(saved, kinds)), pdf)
+                else:
+                    images_to_pdf(saved, pdf)
+            except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+                return {"error": f"{title}: an image is larger than {MAX_MEGAPIXELS} megapixels"}, 400
+            except pikepdf.PasswordError:
+                return {"error": f"{title}: a PDF is password-protected and cannot be merged"}, 400
+            except Exception as e:
+                app.logger.warning("Conversion of %r failed: %s", masked(title), e)
+                return {"error": f"{title}: a file could not be read"}, 400
         try:
-            return {"item": stage(pdf, clean_title(title) or "Document", work, preset, images)}
+            images = kinds.count("image")
+            return {"item": stage(pdf, clean_title(title) or "Document", work, preset, saved, images)}
         except Exception:
             app.logger.exception("Error processing %r", masked(title))
             return {"error": f"{title}: processing failed"}, 500

@@ -8,6 +8,7 @@ It runs as a single Docker container behind your reverse proxy and needs no data
 
 - **PDF, JPG and PNG upload** by drag and drop or from the file picker; on a phone, **Scan with camera** opens the camera directly
 - **Photos become A4 PDFs**, one per photo or several merged into one document, with the rotation from the camera applied; uploaded PDFs keep their own page size
+- **Merging**: all photos into one PDF, or all files, PDFs and photos together, into one PDF in the order of the list
 - **Compression with Ghostscript** in three strengths; the smaller of the original and the compressed file is kept
 - **Review before sending**: every file shows its size before and after, can be opened and renamed, then uploaded or deleted, one by one or all at once
 - **Consume status**: the page shows whether Paperless consumed each upload, still has it in the queue, or rejected it as failed or duplicate
@@ -123,8 +124,8 @@ Put exactly one proxy in front of the app. The login lockout relies on the clien
 ## Using it
 
 1. Open your domain and sign in.
-2. Add files: drop them, choose them, or on a phone take a photo with **Scan with camera**. Remove a file again with the × next to it.
-3. Choose whether several images become one PDF and how strongly to compress, then press **Compress**. The results appear under **Ready for review**.
+2. Add files: drop them, choose them, or on a phone take a photo with **Scan with camera**. Remove a file again with the × next to it. Drag a file to change the order, which is the page order of a merged PDF; on a phone, drag it by the dotted grip on its left.
+3. Choose what to merge into one PDF and how strongly to compress, then press **Compress**. **Merge** offers **Off** (one PDF per file), **Images** (all photos into one PDF, each PDF on its own) and **All files** (everything into one PDF, in the order of the list; password-protected PDFs cannot be merged). The results appear under **Ready for review**.
 4. Click the page icon to open a PDF and edit the title if you like; Paperless receives the title as shown. Then choose **Upload** or **Delete**, or send everything with **Upload all**.
 5. **Sent to Paperless** lists what you uploaded since signing in, with its consume status.
 
@@ -148,7 +149,7 @@ To change one, remove the `#` at the start of its line and set the value. The co
 | `APP_NAME` | `Paperdrop` | Name shown on the page and in the browser tab |
 | `THEME` | `dark` | Colours of the page: `dark`, `light`, or `auto`, which follows the light or dark setting of each device |
 | `GS_QUALITY` | `ebook` | Compression strength that is preselected: `printer` (Light), `ebook` (Balanced) or `screen` (Strong) |
-| `MAX_UPLOAD_MB` | `200` | Largest accepted file, and the limit for images that are merged into one document |
+| `MAX_UPLOAD_MB` | `200` | Largest accepted file, and the limit for files that are merged into one document |
 | `SESSION_HOURS` | `24` | How long you stay signed in |
 | `KEEP_MINUTES` | `30` | How long files that were neither uploaded nor deleted are kept |
 | `LOG_LEVEL` | `INFO` | `DEBUG` for more detail |

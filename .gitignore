@@ -45,6 +45,7 @@ htmlcov/
 .vscode/
 .idea/
 .claude/settings.local.json
+CLAUDE.md
 Thumbs.db
 desktop.ini
 .DS_Store

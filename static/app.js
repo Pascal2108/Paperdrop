@@ -10,17 +10,19 @@
 
   const app = $('.app'), queue = $('[data-queue]'), sentList = $('[data-sent]'),
         staged = $('[data-staged]'), alerts = $('[data-alerts]'), compressBtn = $('[data-compress]'),
-        merge = $('[data-merge]'), viewForm = $('#view');
+        viewForm = $('#view');
 
   let picked = [];            // files waiting to be compressed
   let quality = boot.quality;
+  let merge = 'images';       // off, images (all photos into one PDF) or all (every file into one PDF)
   let working = false;        // a compress or "upload all" run is in progress
   const pending = new Map();  // Paperless task id -> pill element still waiting for a final status
 
   // ---------- session ----------
   // The login is kept in a cookie. Once it has run out, '/' shows the login page again.
   const leave = () => location.replace('/');
-  setTimeout(leave, boot.expiresIn * 1000);
+  // A longer delay than setTimeout can hold (about 24.8 days) would fire at once and reload forever
+  setTimeout(leave, Math.min(boot.expiresIn * 1000, 2 ** 31 - 1));
 
   async function api(path, data = {}) {
     const body = new FormData();
@@ -70,13 +72,58 @@
   function renderPicked() {
     staged.replaceChildren(...picked.map((file, i) => {
       const chip = make('t-chip');
+      chip.dataset.i = i;
       $('.n', chip).textContent = file.name;
       $('.s', chip).textContent = mb(file.size);
-      $('[data-remove]', chip).dataset.i = i;
       return chip;
     }));
     refresh();
   }
+
+  // The list is the order in which merged files end up in the PDF. A file is moved by
+  // dragging it (with a finger: by its grip) or with the arrow keys on its grip.
+  let dragged = null;
+  staged.addEventListener('pointerdown', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip || picked.length < 2 || e.button !== 0 || e.target.closest('[data-remove]')) return;
+    if (e.pointerType !== 'mouse' && !e.target.closest('[data-grip]')) return;
+    e.preventDefault();
+    staged.setPointerCapture(e.pointerId);
+    dragged = chip;
+    chip.classList.add('dragging');
+    staged.classList.add('sorting');
+  });
+  staged.addEventListener('pointermove', e => {
+    if (!dragged) return;
+    const over = $$('.chip', staged).find(c => {
+      const r = c.getBoundingClientRect();
+      return e.clientY >= r.top && e.clientY < r.bottom;
+    });
+    if (!over || over === dragged) return;
+    // Take the place of the row under the pointer
+    if (dragged.compareDocumentPosition(over) & Node.DOCUMENT_POSITION_FOLLOWING) over.after(dragged);
+    else over.before(dragged);
+  });
+  const endDrag = () => {
+    if (!dragged) return;
+    dragged = null;
+    staged.classList.remove('sorting');
+    picked = $$('.chip', staged).map(chip => picked[Number(chip.dataset.i)]);
+    renderPicked();
+  };
+  staged.addEventListener('pointerup', endDrag);
+  staged.addEventListener('pointercancel', endDrag);
+  staged.addEventListener('keydown', e => {
+    const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+    const grip = e.target.closest('[data-grip]');
+    if (!step || !grip) return;
+    e.preventDefault();
+    const i = Number(grip.closest('.chip').dataset.i), j = i + step;
+    if (j < 0 || j >= picked.length) return;
+    [picked[i], picked[j]] = [picked[j], picked[i]];
+    renderPicked();
+    $$('[data-grip]', staged)[j].focus();
+  });
 
   function addFiles(files, fromCamera) {
     for (let file of files) {
@@ -123,8 +170,9 @@
     const pct = item.before ? Math.round((item.after / item.before - 1) * 100) : 0;
     const meta = [span(`${mb(item.before)} → ${mb(item.after)}`)];
     if (pct) meta.push(span(`${pct > 0 ? '+' : '−'}${Math.abs(pct)} %`, 'save'));
-    if (item.images === 1) meta.push(span('image converted to PDF'));
-    else if (item.images > 1) meta.push(span(`merged from ${item.images} images`));
+    const files = item.files || Math.max(item.images, 1);  // documents staged before "files" existed
+    if (files > 1) meta.push(span(`merged from ${files} ${item.images === files ? 'images' : 'files'}`));
+    else if (item.images === 1) meta.push(span('image converted to PDF'));
     $('.meta', doc).replaceChildren(...meta);
     return doc;
   }
@@ -138,7 +186,8 @@
     $('.pg', doc).hidden = group.length < 2;
     $('.pg', doc).textContent = group.length;
     $('.prog', doc).hidden = false;
-    $('.meta', doc).replaceChildren(span(group.length > 1 ? `Compressing · merging ${group.length} images` : 'Compressing'));
+    const what = group.every(isImage) ? 'images' : 'files';
+    $('.meta', doc).replaceChildren(span(group.length > 1 ? `Compressing · merging ${group.length} ${what}` : 'Compressing'));
     return doc;
   }
 
@@ -149,12 +198,13 @@
 
   compressBtn.addEventListener('click', async () => {
     if (!picked.length || working) return;
-    // One request per resulting document: each PDF alone, images alone or all merged
+    // One request per resulting document, its files in the order of the list:
+    // everything merged, all images merged where the first one is, or each file alone
     const images = picked.filter(isImage);
-    const together = merge.checked && images.length > 1;
     const groups = [];
-    for (const file of picked) {
-      if (together && isImage(file)) { if (file === images[0]) groups.push(images); }
+    if (merge === 'all') groups.push(picked);
+    else for (const file of picked) {
+      if (merge === 'images' && isImage(file)) { if (file === images[0]) groups.push(images); }
       else groups.push([file]);
     }
     picked = [];
@@ -254,7 +304,11 @@
       quality = btn.dataset.q;
       $$('[data-q]').forEach(b => b.setAttribute('aria-pressed', b === btn));
     }
-    else if (btn.matches('[data-remove]')) { picked.splice(Number(btn.dataset.i), 1); renderPicked(); }
+    else if (btn.matches('[data-m]')) {
+      merge = btn.dataset.m;
+      $$('[data-m]').forEach(b => b.setAttribute('aria-pressed', b === btn));
+    }
+    else if (btn.matches('[data-remove]')) { picked.splice(Number(btn.closest('.chip').dataset.i), 1); renderPicked(); }
     else if (btn.matches('[data-dismiss]')) btn.closest('.alert').remove();
     else if (btn.matches('[data-out]')) { await Promise.race([api('/api/logout'), new Promise(r => setTimeout(r, 2000))]); leave(); }
   });

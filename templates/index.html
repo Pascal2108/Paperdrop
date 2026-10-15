@@ -11,6 +11,7 @@
   <symbol id="i-cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
   <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></symbol>
   <symbol id="i-drop" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 30V8M15 17l9-9 9 9"/><path d="M8 30v8a2 2 0 0 0 2 2h28a2 2 0 0 0 2-2v-8"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></symbol>
   <symbol id="i-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4v16h-4M10 16l-4-4 4-4M6 12h10"/></symbol>
 </svg>
 
@@ -43,7 +44,11 @@
       <div class="alerts" data-alerts role="alert"></div>
 
       <div class="opts">
-        <label class="check"><input type="checkbox" data-merge checked>Merge images into one PDF</label>
+        <div class="seg-row"><span>Merge into one PDF</span>
+          <div class="seg" role="group" aria-label="Merge into one PDF">
+            <button type="button" data-m="off" aria-pressed="false">Off</button><button type="button" data-m="images" aria-pressed="true">Images</button><button type="button" data-m="all" aria-pressed="false">All files</button>
+          </div>
+        </div>
         <div class="seg-row"><span>Compression</span>
           <div class="seg" role="group" aria-label="Compression" data-quality>
             <button type="button" data-q="light" aria-pressed="false">Light</button><button type="button" data-q="balanced" aria-pressed="false">Balanced</button><button type="button" data-q="strong" aria-pressed="false">Strong</button>
@@ -76,7 +81,7 @@
 <form id="view" method="post" target="_blank" hidden><input type="hidden" name="auth"></form>
 
 <template id="t-chip">
-  <div class="chip"><svg><use href="#i-file"/></svg><span class="n"></span><span class="s"></span><button type="button" data-remove aria-label="Remove">×</button></div>
+  <div class="chip"><button class="grip" type="button" data-grip aria-label="Move: drag, or use the arrow keys"><svg><use href="#i-grip"/></svg></button><svg><use href="#i-file"/></svg><span class="n"></span><span class="s"></span><button type="button" data-remove aria-label="Remove">×</button></div>
 </template>
 <template id="t-doc">
   <article class="doc">
