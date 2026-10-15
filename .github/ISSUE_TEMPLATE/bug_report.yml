@@ -1,0 +1,54 @@
+name: Bug report
+description: Something does not work as described
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Issues are public: **never post tokens, passwords, `secrets.env`,
+        real host names, IP addresses or document titles.** Replace them with placeholders.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, and what went wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add two PDFs and a photo
+        2. Set Merge to "All files"
+        3. Press Compress
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The image tag from the `image:` line of your docker-compose.yml, e.g. `latest` or `1.0.1`.
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: e.g. iPhone, Safari / Windows, Edge
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Container log
+      description: The relevant lines from `docker logs paperdrop`. Check them for private data first.
+      render: text
+    validations:
+      required: false

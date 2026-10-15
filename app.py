@@ -299,8 +299,10 @@ def http_error(e):
 
 # Photos are placed on A4 pages, turned to landscape where the photo is wider than tall.
 # The picture keeps its proportions and its pixels; only the page around it is fixed.
+# A large photo is shrunk to fit the page; a small one (a screenshot) keeps its size and is
+# centred. Stretching it would leave so few pixels per inch that Paperless cannot read the text.
 A4 = (img2pdf.mm_to_pt(210), img2pdf.mm_to_pt(297))
-A4_LAYOUT = img2pdf.get_layout_fun(pagesize=A4, auto_orient=True)
+A4_LAYOUT = img2pdf.get_layout_fun(pagesize=A4, fit=img2pdf.FitMode.shrink, auto_orient=True)
 
 
 def images_to_pdf(images: list[Path], out: Path) -> None:
@@ -434,13 +436,32 @@ def task_state(task_id: str) -> dict:
     rows = data.get("results", []) if isinstance(data, dict) else data
     if not rows:
         return {"state": "in queue", "final": False}
-    status, result = rows[0].get("status"), " ".join(str(rows[0].get("result") or "").split())[:300]
+    status, result = str(rows[0].get("status") or "").upper(), task_result(rows[0])
     if status == "SUCCESS":
         return {"state": "consumed", "final": True, "detail": result}
     if status == "FAILURE":
         return {"state": "duplicate" if "duplicate" in result.lower() else "failed",
                 "final": True, "detail": result}
     return {"state": "in queue", "final": False}
+
+
+def task_result(row: dict) -> str:
+    """What Paperless says about a finished task, in older and newer versions of its API.
+
+    Older versions send `result` as text and the status in capitals; newer ones send
+    `result_data` with an error, or with the id of the new document.
+    """
+    data = row.get("result_data")
+    if isinstance(data, dict):
+        if data.get("error_message") or data.get("error_type"):
+            text = f"{data.get('error_type') or ''}: {data.get('error_message') or ''}".strip(": ")
+        elif data.get("document_id") is not None:
+            text = f"Success. New document id {data['document_id']} created"
+        else:
+            text = ""
+    else:
+        text = str(row.get("result") or "")
+    return " ".join(text.split())[:300]
 
 
 STAGING = Path(os.environ.get("STAGING_DIR", "/tmp/staging")).resolve()

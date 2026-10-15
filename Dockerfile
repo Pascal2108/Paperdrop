@@ -11,6 +11,9 @@ RUN apt-get update \
 
 # Log lines appear in `docker logs` / Portainer immediately
 ENV PYTHONUNBUFFERED=1
+# The container is read-only: Ghostscript's font cache goes to the tmpfs, instead of failing
+# and scanning all fonts again on every run
+ENV XDG_CACHE_HOME=/tmp/.cache
 
 WORKDIR /app
 COPY requirements.txt .

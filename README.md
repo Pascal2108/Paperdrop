@@ -7,7 +7,7 @@ It runs as a single Docker container behind your reverse proxy and needs no data
 ## Features
 
 - **PDF, JPG and PNG upload** by drag and drop or from the file picker; on a phone, **Scan with camera** opens the camera directly
-- **Photos become A4 PDFs**, one per photo or several merged into one document, with the rotation from the camera applied; uploaded PDFs keep their own page size
+- **Photos become A4 PDFs**, one per photo or several merged into one document, with the rotation from the camera applied; large photos are fitted to the page, small images such as screenshots keep their size; uploaded PDFs keep their own page size
 - **Merging**: all photos into one PDF, or all files, PDFs and photos together, into one PDF in the order of the list
 - **Compression with Ghostscript** in three strengths; the smaller of the original and the compressed file is kept
 - **Review before sending**: every file shows its size before and after, can be opened and renamed, then uploaded or deleted, one by one or all at once
@@ -205,8 +205,13 @@ The image is published under these tags. Set the one you want in the `image:` li
 | `latest` | The current stable version | With every release, and weekly for security updates |
 | `1.0.0`, `1.1.0`, … | Exactly that [release](https://github.com/Pascal2108/paperdrop/releases) | Never; it also receives no security updates |
 | `beta` | What is being tested for the next release | Often; it may break |
+| `1.0.2-beta.1`, … | Exactly that test version ([pre-release](https://github.com/Pascal2108/paperdrop/releases)) | Never |
 
 Use `latest` unless you have a reason not to. A version number is for going back when an update causes trouble: the release notes say what changed and whether you have to adjust your `docker-compose.yml`.
+
+## Questions and feature requests
+
+Open an [issue on GitHub](https://github.com/Pascal2108/paperdrop/issues/new/choose) (a free account is needed) and choose **Bug report** or **Feature request**; for a question, open a blank issue. Issues are public, so leave out tokens, passwords, host names and document titles.
 
 ## Legal
 
