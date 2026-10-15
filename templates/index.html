@@ -19,7 +19,7 @@
   <header class="top">
     {% include "_brand.html" %}
     <span class="grow"></span>
-    <span class="conn" data-conn title="Checking the connection to Paperless"><i></i><span class="only-wide">{{ paperless_host }}</span><span class="only-narrow" data-conn-short>Paperless</span></span>
+    <span class="conn" data-conn data-host="{{ paperless_host }}" title="Checking the connection to Paperless"><i></i><span data-conn-label>Paperless</span></span>
     {% if login_enabled %}<button class="btn btn-quiet btn-sm only-wide" type="button" data-out>Sign out</button>
     <button class="btn btn-quiet icon-btn only-narrow" type="button" data-out aria-label="Sign out"><svg><use href="#i-out"/></svg></button>{% endif %}
   </header>

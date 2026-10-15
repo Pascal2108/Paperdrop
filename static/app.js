@@ -324,8 +324,9 @@
     const res = await api('/api/ping');
     conn.classList.toggle('on', !!res.ok);
     conn.classList.toggle('off', !res.ok);
-    conn.title = res.detail || res.error || '';
-    $('[data-conn-short]', conn).textContent = res.ok ? 'Paperless' : 'Paperless off';
+    // The label is the same on every screen; which server it is shows on hover
+    conn.title = `${res.detail || res.error || ''} (${conn.dataset.host})`;
+    $('[data-conn-label]', conn).textContent = res.ok ? 'Paperless' : 'Paperless off';
   }
   checkPaperless();
   setInterval(checkPaperless, 60000);

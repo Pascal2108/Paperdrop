@@ -211,7 +211,7 @@ When an upload fails, the page and the container log both state the cause. Read 
 | `cannot reach http://…` | `PAPERLESS_URL` has the wrong container name or port, or the containers share no network |
 | `HTTP 401` | `PAPERLESS_TOKEN` is wrong |
 | `HTTP 403` | The token's user lacks the permission to add documents |
-| Red dot next to the Paperless host name | Paperless cannot be reached or rejects the token; hover over it for the reason |
+| Red dot next to "Paperless off" at the top | Paperless cannot be reached or rejects the token; hover over it for the reason and the address in use |
 | Uploads stay on "sent" | The token's user may not view tasks; see step 2 |
 | `502 Bad Gateway` from the proxy | The container is not running, or the forward hostname or network is wrong |
 | `Too many failed attempts` | Five wrong logins from one address; wait 15 minutes |
