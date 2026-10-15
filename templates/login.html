@@ -8,6 +8,7 @@
 <div class="app login">
   <main class="login-card">
     {% include "_brand.html" %}
+    {% include "_unsafe.html" %}
     {% if error %}<div class="login-err" role="alert">{{ error }}</div>{% endif %}
     <form method="post" action="/login">
       <input type="hidden" name="once" value="{{ once }}">
@@ -15,6 +16,7 @@
       <label class="field">Password<input type="password" name="password" autocomplete="current-password" required></label>
       <button class="btn btn-go" type="submit">Sign in</button>
     </form>
+    {% if http_hint %}<p class="login-hint">This page was opened over plain HTTP, so signing in will not work. Open it through the HTTPS address of your reverse proxy.</p>{% endif %}
   </main>
 </div>
 </body>

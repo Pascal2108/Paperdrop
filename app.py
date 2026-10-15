@@ -55,28 +55,61 @@ QUALITY = {"light": "printer", "balanced": "ebook", "strong": "screen"}
 GS_QUALITY = os.environ.get("GS_QUALITY", "ebook")  # preselected strength, as a Ghostscript preset
 DEFAULT_QUALITY = next((k for k, v in QUALITY.items() if v == GS_QUALITY), "balanced")
 
-LOGIN_USER = os.environ["UPLOADER_USER"]
-LOGIN_PASSWORD = os.environ["UPLOADER_PASSWORD"]
-SESSION_HOURS = int(os.environ.get("SESSION_HOURS", "24"))
+def env_flag(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name, "").strip().lower()
+    return default if not value else value in ("1", "true", "yes", "on")
 
-# The values in secrets.env.example are public: never run with them
-for _name, _example in (("UPLOADER_PASSWORD", "a-long-secure-password"),
-                        ("SECRET_KEY", "paste-random-key-here")):
-    if os.environ[_name] == _example:
-        logging.critical("%s still has the value from secrets.env.example. Set your own in "
-                         "secrets.env, then start the container again.", _name)
+
+# Unsafe options, off unless switched on explicitly. Each one is announced in the log at every
+# start and on the page itself, so that nobody runs with it by accident.
+NO_LOGIN = env_flag("UNSAFE_NO_LOGIN")  # anyone who reaches the page may use it
+ALLOW_HTTP = env_flag("UNSAFE_HTTP")    # the session cookie also works over plain HTTP
+BEHIND_PROXY = env_flag("BEHIND_PROXY", default=True)
+
+SESSION_HOURS = int(os.environ.get("SESSION_HOURS", "24"))
+if NO_LOGIN:
+    # Nothing to sign in with: the login settings are not needed and not used
+    LOGIN_USER = LOGIN_PASSWORD = ""
+    SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+else:
+    missing = [n for n in ("UPLOADER_USER", "UPLOADER_PASSWORD", "SECRET_KEY") if not os.environ.get(n)]
+    if missing:
+        logging.critical("%s missing in secrets.env. Set it, then start the container again.",
+                         ", ".join(missing))
         raise SystemExit(1)
-if len(LOGIN_PASSWORD) < 12:
-    logging.warning("UPLOADER_PASSWORD is shorter than 12 characters. Choose a longer one.")
-if len(os.environ["SECRET_KEY"]) < 32:
-    logging.warning("SECRET_KEY is short. Generate one with: openssl rand -hex 32")
+    LOGIN_USER, LOGIN_PASSWORD = os.environ["UPLOADER_USER"], os.environ["UPLOADER_PASSWORD"]
+    SECRET_KEY = os.environ["SECRET_KEY"]
+
+    # The values in secrets.env.example are public: never run with them
+    for _name, _example in (("UPLOADER_PASSWORD", "a-long-secure-password"),
+                            ("SECRET_KEY", "paste-random-key-here")):
+        if os.environ[_name] == _example:
+            logging.critical("%s still has the value from secrets.env.example. Set your own in "
+                             "secrets.env, then start the container again.", _name)
+            raise SystemExit(1)
+    if len(LOGIN_PASSWORD) < 12:
+        logging.warning("UPLOADER_PASSWORD is shorter than 12 characters. Choose a longer one.")
+    if len(SECRET_KEY) < 32:
+        logging.warning("SECRET_KEY is short. Generate one with: openssl rand -hex 32")
+
+if NO_LOGIN:
+    logging.warning("UNSAFE: UNSAFE_NO_LOGIN is on. There is no login: anyone who can reach this "
+                    "page can send documents to Paperless. Use it only in a network you fully trust.")
+if ALLOW_HTTP:
+    logging.warning("UNSAFE: UNSAFE_HTTP is on. Over plain HTTP, documents%s travel unencrypted "
+                    "and can be read by anyone on the network.", "" if NO_LOGIN else ", password and session")
+if not BEHIND_PROXY and not NO_LOGIN:
+    logging.warning("BEHIND_PROXY is off: the login lockout counts the address of each connection. "
+                    "Do not put a proxy in front, or all users share one address.")
 
 app = Flask(__name__)
 app.config.update(MAX_CONTENT_LENGTH=MAX_MB * 1024 * 1024)
 
 # Exactly one proxy (NPM) in front: only its X-Forwarded-For entry is trusted,
-# so a spoofed header sent by the client is ignored.
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+# so a spoofed header sent by the client is ignored. Without a proxy (BEHIND_PROXY off)
+# the header is not trusted at all, since a client could otherwise choose its own address.
+if BEHIND_PROXY:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # Signing in sets a cookie with a random session token. Scripts cannot read it (HttpOnly)
 # and the browser sends it over HTTPS only. It is valid for SESSION_HOURS from the moment
@@ -93,9 +126,14 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 # Signing in answers with a redirect: reloading the page then never repeats the login form.
 # The form also works only once, so a remembered password cannot be replayed with it. The
 # per-start salt invalidates open login forms on a restart, when the list of used ones is gone.
-COOKIE = "__Host-paperdrop"
-COOKIE_FLAGS = dict(secure=True, httponly=True, samesite="Lax", path="/")
-_signer = URLSafeTimedSerializer(os.environ["SECRET_KEY"], salt=f"login-{secrets.token_hex(8)}")
+#
+# UNSAFE_HTTP drops the HTTPS-only flag (and the __Host- prefix, which requires it), so that
+# the browser keeps the cookie over plain HTTP. UNSAFE_NO_LOGIN needs no cookie at all: the
+# page token is the same for everyone and still keeps other websites from acting (CSRF).
+COOKIE = "paperdrop" if ALLOW_HTTP else "__Host-paperdrop"
+COOKIE_FLAGS = dict(secure=not ALLOW_HTTP, httponly=True, samesite="Lax", path="/")
+OPEN_PAGE_TOKEN = secrets.token_urlsafe(32)  # the page token in UNSAFE_NO_LOGIN mode
+_signer = URLSafeTimedSerializer(SECRET_KEY, salt=f"login-{secrets.token_hex(8)}")
 _used_forms: dict[str, float] = {}
 _sessions: dict[str, tuple[float, str, str]] = {}  # session token -> (end of validity, page token, address)
 _lock = threading.Lock()
@@ -181,6 +219,8 @@ def login_form_fresh(token: str) -> bool:
 def current_session() -> tuple[float, str] | None:
     """(end of validity, page token) of the signed-in browser, or None."""
     now = time.time()
+    if NO_LOGIN:
+        return now + SESSION_HOURS * 3600, OPEN_PAGE_TOKEN
     with _lock:
         for old in [s for s, entry in _sessions.items() if entry[0] < now]:
             del _sessions[old]
@@ -222,6 +262,9 @@ def login_required(view=None, *, form: bool = False):
             if not signed_in(form):
                 if is_api():
                     return {"error": "signed out"}, 401
+                if NO_LOGIN:
+                    # e.g. "Open PDF" from a page that is older than the last restart
+                    return redirect("/", 303)
                 return login_page("Please sign in again.", 401)
             return view(*args, **kwargs)
         return wrapper
@@ -251,6 +294,8 @@ def home():
 
 @app.post("/login")
 def login():
+    if NO_LOGIN:
+        return redirect("/", 303)
     ip = client_ip()
     # A repeated form (restored tab, back button) is turned away before the password is looked at
     if not login_form_fresh(request.form.get("once", "")):
@@ -265,9 +310,10 @@ def login():
     with _lock:
         _failed.pop(ip, None)
     app.logger.info("Login from %s", ip)
-    if not request.is_secure:
+    if not request.is_secure and not ALLOW_HTTP:
         app.logger.warning("Login over plain HTTP: the browser will not keep the session cookie. "
-                           "Open the page through the HTTPS address of your reverse proxy.")
+                           "Open the page through the HTTPS address of your reverse proxy "
+                           "(or, unsafe, set UNSAFE_HTTP).")
     token = secrets.token_urlsafe(32)
     with _lock:
         _sessions[token] = (time.time() + SESSION_HOURS * 3600, secrets.token_urlsafe(32), ip)
@@ -615,7 +661,25 @@ ASSET_VERSION = hashlib.sha256(b"".join(
 def branding():
     return {"app_name": APP_NAME, "own_name": APP_NAME == DEFAULT_NAME, "v": ASSET_VERSION, "theme": THEME,
             "logo": "/logo" if LOGO_MIME else None,
-            "paperless_host": urlsplit(PAPERLESS_URL).hostname or PAPERLESS_URL}
+            "paperless_host": urlsplit(PAPERLESS_URL).hostname or PAPERLESS_URL,
+            "login_enabled": not NO_LOGIN, "unsafe_notes": unsafe_notes(),
+            "http_hint": not (NO_LOGIN or ALLOW_HTTP or request.is_secure or is_local_host())}
+
+
+def unsafe_notes() -> list[str]:
+    """The warnings shown on every page while an unsafe option is in effect."""
+    notes = []
+    if NO_LOGIN:
+        notes.append("There is no login. Anyone who can open this page can send documents to Paperless.")
+    if ALLOW_HTTP and not request.is_secure:
+        notes.append("This connection is not encrypted. Documents" + ("" if NO_LOGIN else " and your password")
+                     + " travel in plain text and can be read by others on the network.")
+    return notes
+
+
+def is_local_host() -> bool:
+    # Browsers keep HTTPS-only cookies for these addresses even over plain HTTP
+    return request.host.rsplit(":", 1)[0].strip("[]") in ("localhost", "127.0.0.1", "::1")
 
 
 MAGIC = {b"%PDF-": "pdf", b"\xff\xd8\xff": "image", b"\x89PNG\r\n\x1a\n": "image"}

@@ -70,6 +70,12 @@ html, body { margin: 0; background: var(--bg); }
 .icon-btn { width: 38px; height: 38px; padding: 0; }
 
 .main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 16px; }
+/* Shown while an unsafe option is on: hard to overlook, and it cannot be dismissed */
+.unsafes { display: grid; gap: 8px; }
+.app > .unsafes { padding: 14px 16px 0; }
+.unsafe { color: var(--err-text); background: #e5574f1f; border: 1px solid var(--red); border-radius: 9px; padding: 9px 12px; font-size: .88rem; line-height: 1.45; }
+.unsafe b { color: var(--red); }
+.login-hint { color: var(--muted); font-size: .85rem; line-height: 1.45; margin: 0; }
 .main > * { min-width: 0; }
 .h { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; font-size: 1rem; font-weight: 650; }
 .h .count { font: 12px var(--mono); color: var(--muted); background: var(--raise); border-radius: 999px; padding: 2px 8px; }
@@ -157,8 +163,9 @@ html, body { margin: 0; background: var(--bg); }
 /* ---------- wide layout (desktop / tablet landscape) ---------- */
 @container (min-width: 820px) {
   /* content stays in a centered column of 1120px; the header line still spans the screen */
-  .top, .main, .foot { --side: max(28px, calc(50% - 560px)); }
+  .top, .main, .foot, .unsafes { --side: max(28px, calc(50% - 560px)); }
   .top { padding: 16px var(--side); position: static; }
+  .app > .unsafes { padding: 20px var(--side) 0; }
   .main { grid-template-columns: 380px minmax(0, 1fr); gap: 28px; padding: 24px var(--side); align-items: start; }
   .left { position: sticky; top: 24px; display: grid; gap: 16px; }
   .drop { padding: 36px 20px; }

@@ -1,0 +1,4 @@
+{% if unsafe_notes %}<div class="unsafes" role="alert">
+  {% for note in unsafe_notes %}<div class="unsafe"><b>Unsafe:</b> {{ note }}</div>
+  {% endfor %}</div>
+{% endif %}

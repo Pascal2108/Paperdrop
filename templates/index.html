@@ -20,9 +20,10 @@
     {% include "_brand.html" %}
     <span class="grow"></span>
     <span class="conn" data-conn title="Checking the connection to Paperless"><i></i><span class="only-wide">{{ paperless_host }}</span><span class="only-narrow" data-conn-short>Paperless</span></span>
-    <button class="btn btn-quiet btn-sm only-wide" type="button" data-out>Sign out</button>
-    <button class="btn btn-quiet icon-btn only-narrow" type="button" data-out aria-label="Sign out"><svg><use href="#i-out"/></svg></button>
+    {% if login_enabled %}<button class="btn btn-quiet btn-sm only-wide" type="button" data-out>Sign out</button>
+    <button class="btn btn-quiet icon-btn only-narrow" type="button" data-out aria-label="Sign out"><svg><use href="#i-out"/></svg></button>{% endif %}
   </header>
+  {% include "_unsafe.html" %}
 
   <main class="main">
     <section class="left">
@@ -73,7 +74,7 @@
     </section>
   </main>
 
-  <p class="foot">You stay signed in on this device for {{ boot.sessionHours }} hours. Sign out when you are done on a device you share.</p>
+  {% if login_enabled %}<p class="foot">You stay signed in on this device for {{ boot.sessionHours }} hours. Sign out when you are done on a device you share.</p>{% else %}<p class="foot"></p>{% endif %}
 
   <div class="dock only-narrow" data-dock hidden><button class="btn btn-go" type="button" data-all><svg><use href="#i-up"/></svg><span>Upload all (<span data-n>0</span>)</span></button></div>
 </div>

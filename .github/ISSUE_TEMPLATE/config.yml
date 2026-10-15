@@ -1,6 +1,0 @@
-# Questions can still be asked in a blank issue
-blank_issues_enabled: true
-contact_links:
-  - name: Report a security vulnerability
-    url: https://github.com/Pascal2108/paperdrop/security/advisories/new
-    about: Please report security problems privately, never in a public issue. See SECURITY.md.

@@ -14,6 +14,13 @@ services:
       # SESSION_HOURS: 24         # (optional) hours you stay signed in
       # KEEP_MINUTES: 30          # (optional) minutes until files that were neither uploaded nor deleted are removed
       # LOG_LEVEL: INFO           # (optional) DEBUG for more detail in the log
+      #
+      # UNSAFE options: off unless you remove the #. Read "Unsafe options" in the README first.
+      # UNSAFE_NO_LOGIN: "true"   # UNSAFE: no login at all, anyone who reaches the page can upload to Paperless
+      # UNSAFE_HTTP: "true"       # UNSAFE: login works over plain HTTP, password and documents travel unencrypted
+      # BEHIND_PROXY: "false"     # set this when you publish the port below and use no reverse proxy
+    # ports:                      # (optional) only without a reverse proxy, see "Unsafe options" in the README
+    #   - "8000:8000"
     # volumes:                    # (optional) your own logo: remove the # on this line and the next,
     #   - ./logo.png:/logo:ro     #   then change ./logo.png to the path of a PNG, JPG or WEBP file
     tmpfs:

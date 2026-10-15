@@ -153,6 +153,9 @@ To change one, remove the `#` at the start of its line and set the value. The co
 | `SESSION_HOURS` | `24` | How long you stay signed in |
 | `KEEP_MINUTES` | `30` | How long files that were neither uploaded nor deleted are kept |
 | `LOG_LEVEL` | `INFO` | `DEBUG` for more detail |
+| `UNSAFE_NO_LOGIN` | `false` | ⚠️ **Unsafe.** No login at all; see [Unsafe options](#unsafe-options) |
+| `UNSAFE_HTTP` | `false` | ⚠️ **Unsafe.** Login also works over plain HTTP; see [Unsafe options](#unsafe-options) |
+| `BEHIND_PROXY` | `true` | `false` when Paperdrop is reached directly through a published port, without a reverse proxy |
 
 ### Your own name and logo
 
@@ -169,6 +172,29 @@ Out of the box the page shows the Paperdrop name and logo. Both can be replaced 
 ```
 
 Apply the change with `docker compose up -d`. If the logo does not appear, the container log says why. The browser tab icon stays the Paperdrop one.
+
+### Unsafe options
+
+> [!WARNING]
+> These options remove protection. Use them only in a network where you trust **every device and every person**, and never when Paperdrop can be reached from the internet. While one is on, the container log warns at every start and every page shows a red notice that cannot be hidden.
+
+**`UNSAFE_NO_LOGIN: "true"`** removes the login. Whoever can open the page can see the files waiting for review and send documents into your Paperless, with the rights of the Paperless user behind `PAPERLESS_TOKEN`. That includes every device in the network, guests and any compromised device. `UPLOADER_USER`, `UPLOADER_PASSWORD` and `SECRET_KEY` are then not needed. Other websites still cannot act on the page on your behalf.
+
+**`UNSAFE_HTTP: "true"`** lets the login work over plain HTTP, without a reverse proxy that provides HTTPS. Everything then travels unencrypted: your password, the session cookie and every document. Anyone on the same network, such as the Wi-Fi, can read it and take over your session. Over HTTPS the page keeps working as before.
+
+With the normal setup behind a reverse proxy, `UNSAFE_HTTP` alone is enough for a proxy host that is reachable over HTTP; leave `BEHIND_PROXY` as it is. To keep that from happening by accident, switch on **Force SSL** for the proxy host instead: plain HTTP then redirects to HTTPS.
+
+To reach Paperdrop without a reverse proxy, also publish its port and switch off `BEHIND_PROXY`, so that the login lockout counts real addresses instead of trusting a header that any client could fake:
+
+```yaml
+    environment:
+      UNSAFE_HTTP: "true"
+      BEHIND_PROXY: "false"
+    ports:
+      - "8000:8000"
+```
+
+The page is then at `http://<address of the server>:8000`. The container still needs a Docker network shared with Paperless.
 
 ## Troubleshooting
 
