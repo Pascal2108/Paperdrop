@@ -14,6 +14,7 @@ services:
       # SESSION_HOURS: 24         # (optional) hours you stay signed in
       # KEEP_MINUTES: 30          # (optional) minutes until files that were neither uploaded nor deleted are removed
       # LOG_LEVEL: INFO           # (optional) DEBUG for more detail in the log
+      # DOCUMENT_SCANNER: "false" # (optional) camera photos are uploaded as taken, without finding and straightening the page
       #
       # UNSAFE options: off unless you remove the #. Read "Unsafe options" in the README first.
       # UNSAFE_NO_LOGIN: "true"   # UNSAFE: no login at all, anyone who reaches the page can upload to Paperless

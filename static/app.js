@@ -142,7 +142,17 @@
 
   for (const id of ['files', 'camera']) {
     const input = document.getElementById(id);
-    input.addEventListener('change', () => { addFiles(input.files, id === 'camera'); input.value = ''; });
+    input.addEventListener('change', async () => {
+      const chosen = [...input.files];
+      input.value = '';
+      // A camera photo first goes through the document scanner, unless it is switched off
+      const scanner = id === 'camera' && boot.scanner && window.PaperdropScanner;
+      if (!scanner || !scanner.supported) { addFiles(chosen, id === 'camera'); return; }
+      for (const photo of chosen) {
+        const page = await scanner.edit(photo);
+        if (page) addFiles([page], true);
+      }
+    });
   }
 
   const drop = $('[data-drop]');

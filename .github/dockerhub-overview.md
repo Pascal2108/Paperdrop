@@ -11,6 +11,7 @@ A small self-hosted web page that **compresses PDFs and photos and sends them to
 ## Features
 
 - **PDF, JPG and PNG upload** by drag and drop or file picker; on a phone, **Scan with camera** opens the camera directly
+- **Document scanner**: finds the page in a camera photo, lets you adjust its corners, straightens it and turns the paper white; runs in the browser, can be switched off
 - **Merging**: several photos, or PDFs and photos together, into one PDF, in an order you set by dragging
 - **Compression with Ghostscript** in three strengths; the smaller of original and compressed file is kept
 - **Review before sending**: size before and after, open the PDF, rename it, then upload or delete

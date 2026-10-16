@@ -100,6 +100,31 @@
   <div class="alert"><span></span><button type="button" data-dismiss aria-label="Dismiss">×</button></div>
 </template>
 
+{% if boot.scanner %}
+<div class="scan" data-scan role="dialog" aria-modal="true" aria-label="Adjust the scanned page" hidden>
+  <div class="scan-top">
+    <button class="btn btn-quiet btn-sm" type="button" data-scan-cancel>Cancel</button>
+    <span class="scan-note" data-scan-note aria-live="polite"></span>
+  </div>
+  <div class="scan-stage" data-scan-stage>
+    <div class="scan-pic">
+      <canvas data-scan-view></canvas>
+      <svg data-scan-frame aria-label="Page corners, drag to adjust">
+        <polygon/>
+        <circle data-corner r="15"/><circle data-corner r="15"/><circle data-corner r="15"/><circle data-corner r="15"/>
+      </svg>
+    </div>
+  </div>
+  <div class="scan-bar">
+    <div class="seg" role="group" aria-label="Look of the page">
+      <button type="button" data-f="clean" aria-pressed="true">Clean</button><button type="button" data-f="original" aria-pressed="false">Original</button>
+    </div>
+    <button class="btn btn-quiet" type="button" data-scan-full>Whole photo</button>
+    <button class="btn btn-go" type="button" data-scan-done>Use page</button>
+  </div>
+</div>
+<script src="/static/scanner.js?v={{ v }}"></script>
+{% endif %}
 <script type="application/json" id="boot">{{ boot|tojson }}</script>
 <script src="/static/app.js?v={{ v }}"></script>
 </body>

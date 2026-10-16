@@ -65,6 +65,9 @@ def env_flag(name: str, default: bool = False) -> bool:
 NO_LOGIN = env_flag("UNSAFE_NO_LOGIN")  # anyone who reaches the page may use it
 ALLOW_HTTP = env_flag("UNSAFE_HTTP")    # the session cookie also works over plain HTTP
 BEHIND_PROXY = env_flag("BEHIND_PROXY", default=True)
+# Camera photos go through the document scanner in the browser (find the page, straighten it);
+# false uploads them as taken
+DOCUMENT_SCANNER = env_flag("DOCUMENT_SCANNER", default=True)
 
 SESSION_HOURS = int(os.environ.get("SESSION_HOURS", "24"))
 if NO_LOGIN:
@@ -289,6 +292,7 @@ def home():
     return render_template("index.html", boot={
         "auth": page_token, "items": staged_items(), "sessionHours": SESSION_HOURS,
         "expiresIn": int(expires - time.time()), "maxMb": MAX_MB, "quality": DEFAULT_QUALITY,
+        "scanner": DOCUMENT_SCANNER,
     })
 
 
@@ -654,7 +658,7 @@ LOGO_MIME = logo_mimetype()
 # Added to the address of the script and the stylesheet, so that a browser or a caching
 # proxy never pairs a new page with files it kept from the previous version
 ASSET_VERSION = hashlib.sha256(b"".join(
-    (Path(app.static_folder) / name).read_bytes() for name in ("app.js", "app.css"))).hexdigest()[:10]
+    (Path(app.static_folder) / name).read_bytes() for name in ("app.js", "app.css", "scanner.js"))).hexdigest()[:10]
 
 
 @app.context_processor
