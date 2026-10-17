@@ -113,14 +113,15 @@
         <polygon/>
         <circle data-corner r="15"/><circle data-corner r="15"/><circle data-corner r="15"/><circle data-corner r="15"/>
       </svg>
+      <canvas class="scan-loupe" data-scan-loupe aria-hidden="true" hidden></canvas>
     </div>
+    <canvas class="scan-result" data-scan-result aria-label="The straightened page" hidden></canvas>
   </div>
   <div class="scan-bar">
-    <div class="seg" role="group" aria-label="Look of the page">
-      <button type="button" data-f="clean" aria-pressed="true">Clean</button><button type="button" data-f="original" aria-pressed="false">Original</button>
-    </div>
     <button class="btn btn-quiet" type="button" data-scan-full>Whole photo</button>
-    <button class="btn btn-go" type="button" data-scan-done>Use page</button>
+    <button class="btn btn-go" type="button" data-scan-done>Done</button>
+    <button class="btn btn-quiet" type="button" data-scan-back hidden>Adjust corners</button>
+    <button class="btn btn-go" type="button" data-scan-use hidden>Use page</button>
   </div>
 </div>
 <script src="/static/scanner.js?v={{ v }}"></script>

@@ -11,7 +11,7 @@ It runs as a single Docker container behind your reverse proxy and needs no data
 <img src="docs/screenshots/phone.png" alt="Paperdrop on a phone, with the Scan with camera button" width="240" align="right">
 
 - **PDF, JPG and PNG upload** by drag and drop or from the file picker; on a phone, **Scan with camera** opens the camera directly
-- **Document scanner** for camera photos: finds the page, lets you drag its corners into place, straightens it and turns the paper white, like a scanner app; it runs in the browser on the phone and can be switched off
+- **Document scanner** for camera photos: finds the page, lets you drag its corners into place with a magnifier, and straightens it, like a scanner app; it runs in the browser on the phone and can be switched off
 - **Photos become A4 PDFs**, one per photo or several merged into one document, with the rotation from the camera applied; large photos are fitted to the page, small images such as screenshots keep their size; uploaded PDFs keep their own page size
 - **Merging**: all photos into one PDF, or all files, PDFs and photos together, into one PDF in the order of the list, which you set by dragging
 - **Compression with Ghostscript** in three strengths; the smaller of the original and the compressed file is kept
@@ -131,7 +131,7 @@ Put exactly one proxy in front of the app. The login lockout relies on the clien
 ## Using it
 
 1. Open your domain and sign in.
-2. Add files: drop them, choose them, or on a phone take a photo with **Scan with camera**. After each photo the scanner shows the page it found: drag the corners onto the page edges if needed, choose **Clean** (white paper, for documents) or **Original** (for photos), then **Use page**; **Whole photo** keeps the full picture. For a document with several pages, take one photo per page; they are merged in order. Remove a file again with the × next to it. Drag a file to change the order, which is the page order of a merged PDF; on a phone, drag it by the dotted grip on its left.
+2. Add files: drop them, choose them, or on a phone take a photo with **Scan with camera**. After each photo the scanner shows the page it found: drag the corners onto the page edges if needed (a magnifier above your finger shows the exact spot), then tap **Done** to see the straightened page. Take it with **Use page**, or go back with **Adjust corners**; **Whole photo** keeps the full picture. For a document with several pages, take one photo per page; they are merged in order. Remove a file again with the × next to it. Drag a file to change the order, which is the page order of a merged PDF; on a phone, drag it by the dotted grip on its left.
 3. Choose what to merge into one PDF and how strongly to compress, then press **Compress**. **Merge** offers **Off** (one PDF per file), **Images** (all photos into one PDF, each PDF on its own) and **All files** (everything into one PDF, in the order of the list; password-protected PDFs cannot be merged). The results appear under **Ready for review**.
 4. Click the page icon to open a PDF and edit the title if you like; Paperless receives the title as shown. Then choose **Upload** or **Delete**, or send everything with **Upload all**.
 5. **Sent to Paperless** lists what you uploaded since signing in, with its consume status.

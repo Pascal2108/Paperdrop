@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 // Document scanner for camera photos: finds the page in the photo, lets the user move its
-// corners, straightens it and cleans up the paper. Everything runs here in the browser with
+// corners with a magnifier, and straightens it. Everything runs here in the browser with
 // plain canvas code; nothing is loaded from elsewhere, and the server only receives the
 // finished JPEG, which it checks like any other upload.
 (() => {
@@ -255,70 +255,10 @@
     return out;
   }
 
-  // ---------- cleaning up the paper ----------
-  // Every pixel is divided by the brightness of the paper around it: the paper turns white,
-  // shadows and uneven light disappear, ink stays in its colour and gets a little darker.
-  function clean(c) {
-    const W = c.width, H = c.height;
-    const img = ctx(c).getImageData(0, 0, W, H), d = img.data;
-    // The paper's brightness on a coarse grid: the brightest point of every tile, so that ink,
-    // logos and stamps inside a tile do not count, whatever the browser does when scaling
-    const cell = Math.max(8, Math.round(Math.max(W, H) / 48));
-    const sw = Math.ceil(W / cell), sh = Math.ceil(H / cell);
-    const small = canvas(sw, sh), sm = ctx(small).createImageData(sw, sh);
-    const paper = new Uint8ClampedArray(sw * sh * 4);
-    for (let y = 0; y < H; y++) {
-      const row = ((y / cell) | 0) * sw;
-      for (let x = 0; x < W; x++) {
-        const i = (y * W + x) * 4, j = (row + ((x / cell) | 0)) * 4;
-        if (d[i] > paper[j]) paper[j] = d[i];
-        if (d[i + 1] > paper[j + 1]) paper[j + 1] = d[i + 1];
-        if (d[i + 2] > paper[j + 2]) paper[j + 2] = d[i + 2];
-      }
-    }
-    for (let i = 3; i < paper.length; i += 4) paper[i] = 255;
-    // Then the brightest of the neighbouring tiles, for a logo or stamp that fills a whole tile,
-    // and the average of the neighbours, so that no tile edges show. One tile wide each, so
-    // that shadows are still followed closely.
-    const around = pick => {
-      const src = new Uint8ClampedArray(paper);
-      for (let y = 0; y < sh; y++) {
-        for (let x = 0; x < sw; x++) {
-          for (let ch = 0; ch < 3; ch++) {
-            const near = [];
-            for (let dy = -1; dy <= 1; dy++) {
-              for (let dx = -1; dx <= 1; dx++) {
-                const nx = Math.min(sw - 1, Math.max(0, x + dx)), ny = Math.min(sh - 1, Math.max(0, y + dy));
-                near.push(src[(ny * sw + nx) * 4 + ch]);
-              }
-            }
-            paper[(y * sw + x) * 4 + ch] = pick(near);
-          }
-        }
-      }
-    };
-    around(v => Math.max(...v));
-    around(v => v.reduce((s, x) => s + x, 0) / v.length);
-    sm.data.set(paper);
-    ctx(small).putImageData(sm, 0, 0);
-    const bg = canvas(W, H), g = ctx(bg);
-    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-    g.drawImage(small, 0, 0, sw * cell, sh * cell);  // each tile back over its own pixels
-    const b = g.getImageData(0, 0, W, H).data;
-    for (let i = 0; i < d.length; i += 4) {
-      for (let ch = 0; ch < 3; ch++) {
-        const v = Math.min(1, d[i + ch] / Math.max(24, b[i + ch]) * 1.08);
-        d[i + ch] = 255 * v ** 1.6;
-      }
-    }
-    ctx(c).putImageData(img, 0, 0);
-    return c;
-  }
-
   // ---------- the editor ----------
   const FULL = [[0, 0], [1, 0], [1, 1], [0, 1]];
   const INSET = [[0.06, 0.06], [0.94, 0.06], [0.94, 0.94], [0.06, 0.94]];
-  let mode = 'clean';  // remembered while the page is open
+  const LOUPE = 112, ZOOM = 3;  // magnifier while a corner is moved: size in CSS pixels, enlargement
 
   function edit(file) {
     const box = document.querySelector('[data-scan]');
@@ -329,10 +269,15 @@
     const handles = [...svg.querySelectorAll('[data-corner]')];
     const note = box.querySelector('[data-scan-note]');
     const done = box.querySelector('[data-scan-done]');
-    const modes = [...box.querySelectorAll('[data-f]')];
+    const loupe = box.querySelector('[data-scan-loupe]');
+    const pic = box.querySelector('.scan-pic');
+    const result = box.querySelector('[data-scan-result]');
+    const editOnly = [...box.querySelectorAll('[data-scan-full], [data-scan-done]')];
+    const previewOnly = [...box.querySelectorAll('[data-scan-back], [data-scan-use]')];
 
     return new Promise(resolve => {
       let src = null, quad = INSET.map(p => [...p]), dragging = -1, busy = false;
+      let page = null;  // the straightened page while it is previewed
       let shownW = 1, shownH = 1;  // size of the photo on screen, in CSS pixels
       const cleanup = [];
       const on = (el, type, fn) => { el.addEventListener(type, fn); cleanup.push(() => el.removeEventListener(type, fn)); };
@@ -351,25 +296,66 @@
         shape.setAttribute('points', pts.map(p => p.join(',')).join(' '));
         handles.forEach((el, i) => { el.setAttribute('cx', pts[i][0]); el.setAttribute('cy', pts[i][1]); });
       };
-      const fit = () => {
-        if (!src) return;
+      // Draws an image as large as the stage allows; returns its size on screen in CSS pixels
+      const show = (image, target) => {
         const room = getComputedStyle(stage);
-        const s = Math.min((stage.clientWidth - parseFloat(room.paddingLeft) - parseFloat(room.paddingRight)) / src.width,
-                           (stage.clientHeight - parseFloat(room.paddingTop) - parseFloat(room.paddingBottom)) / src.height, 1);
-        shownW = Math.max(1, Math.round(src.width * s));
-        shownH = Math.max(1, Math.round(src.height * s));
+        const s = Math.min((stage.clientWidth - parseFloat(room.paddingLeft) - parseFloat(room.paddingRight)) / image.width,
+                           (stage.clientHeight - parseFloat(room.paddingTop) - parseFloat(room.paddingBottom)) / image.height, 1);
+        const w = Math.max(1, Math.round(image.width * s)), h = Math.max(1, Math.round(image.height * s));
         const sharp = Math.min(2, devicePixelRatio || 1);
-        view.width = Math.round(shownW * sharp);
-        view.height = Math.round(shownH * sharp);
-        view.style.width = svg.style.width = `${shownW}px`;
-        view.style.height = svg.style.height = `${shownH}px`;
-        ctx(view).drawImage(src, 0, 0, view.width, view.height);
+        target.width = Math.round(w * sharp);
+        target.height = Math.round(h * sharp);
+        target.style.width = `${w}px`;
+        target.style.height = `${h}px`;
+        ctx(target).drawImage(image, 0, 0, target.width, target.height);
+        return [w, h];
+      };
+      const fit = () => {
+        if (page) { show(page, result); return; }
+        if (!src) return;
+        [shownW, shownH] = show(src, view);
+        svg.style.width = `${shownW}px`;
+        svg.style.height = `${shownH}px`;
         draw();
+      };
+      // Editing the corners, or looking at the straightened page before taking it
+      const mode = previewing => {
+        pic.hidden = previewing;
+        result.hidden = !previewing;
+        editOnly.forEach(b => { b.hidden = previewing; });
+        previewOnly.forEach(b => { b.hidden = !previewing; });
       };
       const setBusy = (on, text) => {
         busy = on;
         note.textContent = text;
         box.querySelectorAll('button').forEach(b => { b.disabled = on && !b.matches('[data-scan-cancel]'); });
+      };
+
+      // The magnifier shows the photo around the corner being moved, enlarged, with the two frame
+      // edges that meet there. It sits above the finger, which would otherwise cover the spot,
+      // and below it when the corner is near the top.
+      const magnify = () => {
+        const sharp = Math.min(3, devicePixelRatio || 1), px = Math.round(LOUPE * sharp);
+        if (loupe.width !== px) { loupe.width = loupe.height = px; loupe.style.width = loupe.style.height = `${LOUPE}px`; }
+        const [x, y] = quad[dragging], g = ctx(loupe);
+        const span = LOUPE / ZOOM / shownW * src.width;  // photo pixels shown across the magnifier
+        g.fillStyle = '#0b0c0d'; g.fillRect(0, 0, px, px);
+        g.drawImage(src, x * src.width - span / 2, y * src.height - span / 2, span, span, 0, 0, px, px);
+        const at = ([qx, qy]) => [px / 2 + (qx - x) * shownW * ZOOM * sharp, px / 2 + (qy - y) * shownH * ZOOM * sharp];
+        g.lineWidth = 2 * sharp; g.strokeStyle = '#f5a623';
+        g.beginPath();
+        g.moveTo(...at(quad[(dragging + 3) % 4])); g.lineTo(px / 2, px / 2); g.lineTo(...at(quad[(dragging + 1) % 4]));
+        g.stroke();
+        g.lineWidth = sharp; g.strokeStyle = '#ffffff';
+        g.beginPath();
+        g.moveTo(px / 2 - 10 * sharp, px / 2); g.lineTo(px / 2 + 10 * sharp, px / 2);
+        g.moveTo(px / 2, px / 2 - 10 * sharp); g.lineTo(px / 2, px / 2 + 10 * sharp);
+        g.stroke();
+        const cx = x * shownW, cy = y * shownH, gap = 34;
+        const left = Math.min(shownW - LOUPE / 2, Math.max(LOUPE / 2, cx)) - LOUPE / 2;
+        const top = cy - gap - LOUPE >= -40 ? cy - gap - LOUPE : cy + gap;
+        loupe.style.transform = `translate(${left}px, ${top}px)`;
+        loupe.hidden = false;
       };
 
       on(svg, 'pointerdown', e => {
@@ -378,6 +364,7 @@
         e.preventDefault();
         dragging = handles.indexOf(el);
         svg.setPointerCapture(e.pointerId);
+        magnify();
       });
       on(svg, 'pointermove', e => {
         if (dragging < 0) return;
@@ -385,10 +372,12 @@
         quad[dragging] = [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
                           Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
         draw();
+        magnify();
       });
-      const drop = () => { dragging = -1; };
+      const drop = () => { dragging = -1; loupe.hidden = true; };
       on(svg, 'pointerup', drop);
       on(svg, 'pointercancel', drop);
+      on(stage, 'contextmenu', e => e.preventDefault());  // long press on the photo: no browser menu
       on(window, 'resize', fit);
       on(document, 'keydown', e => { if (e.key === 'Escape') close(null); });
 
@@ -397,24 +386,33 @@
         if (!btn) return;
         if (btn.matches('[data-scan-cancel]')) close(null);
         else if (btn.matches('[data-scan-full]')) { quad = FULL.map(p => [...p]); draw(); }
-        else if (btn.matches('[data-f]')) {
-          mode = btn.dataset.f;
-          modes.forEach(b => b.setAttribute('aria-pressed', b === btn));
-        } else if (btn.matches('[data-scan-done]') && src && !busy) {
+        else if (btn.matches('[data-scan-done]') && src && !busy) {
           setBusy(true, 'Straightening the page …');
           await frame();
           try {
-            let out = straighten(src, order(quad));
-            if (mode === 'clean') { note.textContent = 'Cleaning up …'; await frame(); out = clean(out); }
-            const blob = await new Promise(r => out.toBlob(r, 'image/jpeg', 0.9));
-            close(new File([blob], 'scan.jpg', { type: 'image/jpeg' }));
+            page = straighten(src, order(quad));
+            mode(true);
+            fit();
+            setBusy(false, 'This is how the page will look.');
+            box.querySelector('[data-scan-use]').focus();
           } catch {
+            page = null;
             setBusy(false, 'This photo could not be processed. Use the whole photo or try again.');
           }
+        } else if (btn.matches('[data-scan-back]') && !busy) {
+          page = null;  // the corners stay where they were
+          mode(false);
+          fit();
+          setBusy(false, 'Drag the corners if they are not on the page edges.');
+        } else if (btn.matches('[data-scan-use]') && page && !busy) {
+          setBusy(true, 'Saving the page …');
+          const blob = await new Promise(r => page.toBlob(r, 'image/jpeg', 0.9));
+          close(new File([blob], 'scan.jpg', { type: 'image/jpeg' }));
         }
       });
 
-      modes.forEach(b => b.setAttribute('aria-pressed', b.dataset.f === mode));
+      mode(false);
+      loupe.hidden = true;
       box.hidden = false;
       document.documentElement.classList.add('scanning');
       setBusy(true, 'Looking for the page …');
