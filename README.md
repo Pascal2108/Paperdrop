@@ -163,6 +163,7 @@ To change one, remove the `#` at the start of its line and set the value. The co
 | `DOCUMENT_SCANNER` | `true` | `false` uploads camera photos as taken, without finding and straightening the page |
 | `UNSAFE_NO_LOGIN` | `false` | ⚠️ **Unsafe.** No login at all; see [Unsafe options](#unsafe-options) |
 | `UNSAFE_HTTP` | `false` | ⚠️ **Unsafe.** Login also works over plain HTTP; see [Unsafe options](#unsafe-options) |
+| `UNSAFE_HIDE_WARNINGS` | `false` | ⚠️ **Unsafe.** The page no longer shows the notices of the two options above; see [Unsafe options](#unsafe-options) |
 | `BEHIND_PROXY` | `true` | `false` when Paperdrop is reached directly through a published port, without a reverse proxy |
 
 ### Your own name and logo
@@ -189,6 +190,8 @@ Apply the change with `docker compose up -d`. If the logo does not appear, the c
 **`UNSAFE_NO_LOGIN: "true"`** removes the login. Whoever can open the page can see the files waiting for review and send documents into your Paperless, with the rights of the Paperless user behind `PAPERLESS_TOKEN`. That includes every device in the network, guests and any compromised device. It can even include a website that someone in your network visits: through a trick called DNS rebinding, a malicious page can make that person's browser use Paperdrop for it. `UPLOADER_USER`, `UPLOADER_PASSWORD` and `SECRET_KEY` are then not needed. Other websites still cannot act on the page on your behalf.
 
 **`UNSAFE_HTTP: "true"`** lets the login work over plain HTTP, without a reverse proxy that provides HTTPS. Everything then travels unencrypted: your password, the session cookie and every document. Anyone on the same network, such as the Wi-Fi, can read it and take over your session. Over HTTPS the page keeps working as before.
+
+**`UNSAFE_HIDE_WARNINGS: "true"`** removes the notices that the two options above put on every page. It changes nothing about what they do: the page is just as open or as unencrypted, but the people using it are no longer told. Only use it when everyone who can reach the page already knows. The container log keeps warning at every start, and says that the page no longer does.
 
 With the normal setup behind a reverse proxy, `UNSAFE_HTTP` alone is enough for a proxy host that is reachable over HTTP; leave `BEHIND_PROXY` as it is. To keep that from happening by accident, switch on **Force SSL** for the proxy host instead: plain HTTP then redirects to HTTPS.
 

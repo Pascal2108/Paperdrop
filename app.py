@@ -64,6 +64,7 @@ def env_flag(name: str, default: bool = False) -> bool:
 # start and on the page itself, so that nobody runs with it by accident.
 NO_LOGIN = env_flag("UNSAFE_NO_LOGIN")  # anyone who reaches the page may use it
 ALLOW_HTTP = env_flag("UNSAFE_HTTP")    # the session cookie also works over plain HTTP
+HIDE_WARNINGS = env_flag("UNSAFE_HIDE_WARNINGS")  # no notices on the page; the log still warns
 BEHIND_PROXY = env_flag("BEHIND_PROXY", default=True)
 # Camera photos go through the document scanner in the browser (find the page, straighten it);
 # false uploads them as taken
@@ -101,6 +102,9 @@ if NO_LOGIN:
 if ALLOW_HTTP:
     logging.warning("UNSAFE: UNSAFE_HTTP is on. Over plain HTTP, documents%s travel unencrypted "
                     "and can be read by anyone on the network.", "" if NO_LOGIN else ", password and session")
+if HIDE_WARNINGS and (NO_LOGIN or ALLOW_HTTP):
+    logging.warning("UNSAFE: UNSAFE_HIDE_WARNINGS is on. The page no longer tells its users about the "
+                    "unsafe options above. This log is the only place that still does.")
 if not BEHIND_PROXY and not NO_LOGIN:
     logging.warning("BEHIND_PROXY is off: the login lockout counts the address of each connection. "
                     "Do not put a proxy in front, or all users share one address.")
@@ -677,6 +681,8 @@ def unsafe_notes() -> list[dict]:
     "strong" is for what puts this very connection at risk.
     """
     notes = []
+    if HIDE_WARNINGS:  # chosen by the admin: the log at start is the only warning left
+        return notes
     if NO_LOGIN:
         notes.append({"level": "soft", "text": "No login: anyone who can open this page can send documents to Paperless."})
     if ALLOW_HTTP and not request.is_secure:
