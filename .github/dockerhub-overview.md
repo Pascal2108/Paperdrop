@@ -61,7 +61,9 @@ networks:
     name: nginx_reverse_proxy   # network shared by your reverse proxy and Paperless
 ```
 
-Then `docker compose up -d` and add a proxy host for port `8000` of the container `paperdrop`. The [setup guide](https://github.com/Pascal2108/paperdrop#getting-started) explains every step, including a Paperless user with limited rights for the token, and all optional settings.
+This is the shortest working setup. The full [`docker-compose.yml`](https://github.com/Pascal2108/paperdrop/blob/main/docker-compose.yml) on GitHub also lists optional settings that are not shown here, such as the page name and logo, theme, default compression, upload size limit, session length, turning the document scanner off, and running without a reverse proxy. They are explained under [Configuration](https://github.com/Pascal2108/paperdrop#configuration) in the README.
+
+Then `docker compose up -d` and add a proxy host for port `8000` of the container `paperdrop`. The [setup guide](https://github.com/Pascal2108/paperdrop#getting-started) explains every step, including a Paperless user with limited rights for the token.
 
 ## Tags
 
