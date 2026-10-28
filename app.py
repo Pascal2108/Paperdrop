@@ -294,7 +294,7 @@ def home():
         return login_page(LOGIN_MESSAGES.get(request.args.get("m", "")))
     expires, page_token = session
     return render_template("index.html", boot={
-        "auth": page_token, "items": staged_items(), "sessionHours": SESSION_HOURS,
+        "auth": page_token, "items": staged_items(), "sent": sent_items(), "sessionHours": SESSION_HOURS,
         "expiresIn": int(expires - time.time()), "maxMb": MAX_MB, "quality": DEFAULT_QUALITY,
         "scanner": DOCUMENT_SCANNER,
     })
@@ -462,6 +462,38 @@ def failure_reason(e: Exception) -> str:
 
 TASK_RE = re.compile(r"^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
 _task_warned = False
+
+# The "Sent to Paperless" list, so that it survives a reload of the page. It holds only the
+# title, the time and the consume status: the document itself is gone once it is uploaded and
+# cannot be opened from here. Kept in memory for SESSION_HOURS, at most SENT_MAX entries;
+# a restart of the container empties it.
+SENT_MAX = 50
+_sent: list[dict] = []  # newest first
+
+
+def note_sent(title: str, task: str | None) -> dict:
+    entry = {"title": title, "task": task, "time": time.time(),
+             "state": "in queue" if task else "sent", "detail": "", "final": not task}
+    with _lock:
+        _sent.insert(0, entry)
+        del _sent[SENT_MAX:]
+        return dict(entry)
+
+
+def sent_items() -> list[dict]:
+    limit = time.time() - SESSION_HOURS * 3600
+    with _lock:
+        _sent[:] = [s for s in _sent if s["time"] >= limit]
+        return [dict(s) for s in _sent]
+
+
+def note_task_states(states: dict[str, dict]) -> None:
+    """Keeps the last known status, so that a reloaded page shows it at once."""
+    with _lock:
+        for entry in _sent:
+            info = states.get(entry["task"] or "")
+            if info and not entry["final"]:
+                entry.update(state=info["state"], detail=info.get("detail", ""), final=info["final"])
 
 
 def task_state(task_id: str) -> dict:
@@ -770,7 +802,7 @@ def upload_item(item_id):
         return {"error": f"Upload failed – {reason}. File kept for retry."}, 502
     remove_item(item_id)
     app.logger.info("Uploaded %r to Paperless (task %s)", masked(title), task)
-    return {"title": title, "task": task if TASK_RE.match(task) else None}
+    return {"sent": note_sent(title, task if TASK_RE.match(task) else None)}
 
 
 @app.post("/api/item/<item_id>/delete")
@@ -787,7 +819,9 @@ def delete_item(item_id):
 @login_required
 def tasks():
     ids = [i for i in request.form.get("ids", "").split(",") if TASK_RE.match(i)][:20]
-    return {"tasks": {i: task_state(i) for i in ids}}
+    states = {i: task_state(i) for i in ids}
+    note_task_states(states)
+    return {"tasks": states}
 
 
 @app.post("/api/ping")

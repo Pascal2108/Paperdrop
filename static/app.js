@@ -44,7 +44,12 @@
   const isPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
   const isImage = f => /^image\/(jpeg|png)$/.test(f.type) || /\.(jpe?g|png)$/i.test(f.name);
   const joinedTitle = stems => stems.length <= 2 ? stems.join(' + ') : `${stems[0]} + ${stems.length - 1} more`;
-  const clock = () => new Date().toTimeString().slice(0, 5);
+  // "14:05" for today, "27 Oct 14:05" for an earlier day
+  const clock = seconds => {
+    const d = new Date(seconds * 1000), time = d.toTimeString().slice(0, 5);
+    if (d.toDateString() === new Date().toDateString()) return time;
+    return `${d.getDate()} ${d.toLocaleString('en', { month: 'short' })} ${time}`;
+  };
   const span = (text, cls) => { const s = document.createElement('span'); s.textContent = text; if (cls) s.className = cls; return s; };
 
   function alertMsg(text) {
@@ -243,7 +248,7 @@
       $$('button, input', doc).forEach(el => el.disabled = false);
       fail(doc, res.error);
     } else {
-      addSent(res.title, res.task);
+      addSent(res.sent, true);
       doc.remove();
     }
     refresh();
@@ -268,13 +273,14 @@
     pill.title = detail || '';
   }
 
-  function addSent(title, task) {
+  // Only the name and the status: an uploaded document is gone from here and cannot be opened
+  function addSent(entry, newest) {
     const li = make('t-sent');
-    $('.n', li).textContent = title;
-    $('time', li).textContent = clock();
-    setPill($('.pill', li), task ? 'in queue' : 'sent');
-    sentList.prepend(li);
-    if (task) { pending.set(task, $('.pill', li)); schedulePoll(); }
+    $('.n', li).textContent = entry.title;
+    $('time', li).textContent = clock(entry.time);
+    setPill($('.pill', li), entry.state, entry.detail);
+    if (newest) sentList.prepend(li); else sentList.append(li);
+    if (entry.task && !entry.final) { pending.set(entry.task, $('.pill', li)); schedulePoll(); }
   }
 
   // Ask what Paperless did with the uploads until each one has a final status
@@ -326,6 +332,7 @@
   // ---------- start ----------
   $$('[data-q]').forEach(b => b.setAttribute('aria-pressed', b.dataset.q === quality));
   for (const item of boot.items) queue.append(fillDoc(make('t-doc'), item));
+  for (const entry of boot.sent) addSent(entry, false);  // newest first
   refresh();
 
   // Connection to Paperless, checked now and once a minute
