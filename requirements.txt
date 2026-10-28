@@ -3,4 +3,4 @@ gunicorn==26.*
 requests>=2.34.2,<3
 img2pdf==0.6.*
 pikepdf==10.*
-pillow>=12.3,<13
+pillow>=13.0.0,<14
