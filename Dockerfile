@@ -1,4 +1,4 @@
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 LABEL org.opencontainers.image.title="Paperdrop" \
       org.opencontainers.image.description="Self-hosted web page that compresses PDFs and photos and sends them to Paperless-ngx after review." \
