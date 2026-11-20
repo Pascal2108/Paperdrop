@@ -1,5 +1,5 @@
 flask==3.1.*
-gunicorn==26.*
+gunicorn==27.*
 requests>=2.34.2,<3
 img2pdf==0.6.*
 pikepdf==10.*
